@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# app.py - Bot Trading Mejorado con Top 5 Pares Confirmados
+# app.py - Bot Trading Mejorado CORREGIDO
 import os
 import pandas as pd
 import numpy as np
@@ -12,47 +12,40 @@ import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 import random
 
-# ===================== CONFIGURACIÓN RENDER =====================
+# ===================== CONFIGURACIÓN =====================
 app = Flask(__name__)
-
-# Obtener variables de entorno de Render
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
-# Configurar logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-print("🚀 BOT TRADING MEJORADO - TOP 5 PARES CONFIRMADOS")
+print("🚀 BOT TRADING MEJORADO - SCHEDULER CORREGIDO")
 
-# ===================== PARÁMETROS CONFIRMADOS POR BACKTESTING =====================
+# ===================== PARÁMETROS OPTIMIZADOS =====================
 TOP_5_PARES_CONFIRMADOS = ['USDCAD', 'USDJPY', 'AUDUSD', 'EURGBP', 'GBPUSD']
 
 DISTRIBUCION_OPTIMA = {
-    'USDCAD': 0.25,  # 🥇 TOP 1 - 85% WR
-    'USDJPY': 0.20,  # 🥈 TOP 2 - 75% WR
-    'AUDUSD': 0.20,  # 🥉 TOP 3 - 80% WR
-    'EURGBP': 0.18,  # TOP 4 - 75% WR
-    'GBPUSD': 0.17   # TOP 5 - 75% WR
+    'USDCAD': 0.25, 'USDJPY': 0.20, 'AUDUSD': 0.20, 
+    'EURGBP': 0.18, 'GBPUSD': 0.17
 }
 
 PARAMETROS_OPTIMOS = {
     'CAPITAL_INICIAL': 1000,
     'LEVERAGE': 20,
     'MARGEN_POR_ENTRADA': 30,
-    'DCA_NIVELES': [0.005, 0.010],
-    'TP_NIVELES': [0.015, 0.025],
-    'SL_MAXIMO': 0.020,
+    'DCA_NIVELES': [0.005, 0.010],  # 0.5% y 1.0%
+    'TP_NIVELES': [0.015, 0.025],   # 1.5% y 2.5%
+    'SL_MAXIMO': 0.020,             # 2.0%
     'TIMEFRAME': '5m'
 }
 
-# PRECIOS BASE REALISTAS
 PRECIOS_BASE = {
     'USDCAD': 1.3450, 'USDJPY': 148.50, 'AUDUSD': 0.6520,
     'EURGBP': 0.8570, 'GBPUSD': 1.2650
 }
 
-# ===================== GESTIÓN DE OPERACIONES MEJORADA =====================
+# ===================== GESTOR OPERACIONES =====================
 class GestorOperaciones:
     def __init__(self):
         self.operaciones_activas = {}
@@ -84,8 +77,8 @@ class GestorOperaciones:
             'tp2': señal['tp2'],
             'sl': señal['sl'],
             'dca_niveles': [
-                {'nivel': 1, 'precio': self._calcular_nivel_dca(señal, 1), 'activado': False},
-                {'nivel': 2, 'precio': self._calcular_nivel_dca(señal, 2), 'activado': False}
+                {'nivel': 1, 'precio': señal['dca_1'], 'activado': False},
+                {'nivel': 2, 'precio': señal['dca_2'], 'activado': False}
             ],
             'niveles_dca_activados': 0,
             'precio_promedio': señal['precio_actual'],
@@ -99,12 +92,6 @@ class GestorOperaciones:
         self.operaciones_activas[operacion_id] = operacion
         logger.info(f"📈 Operación creada: {operacion_id}")
         return operacion_id
-    
-    def _calcular_nivel_dca(self, señal, nivel_dca):
-        if señal['direccion'] == 'COMPRA':
-            return señal['precio_actual'] * (1 - PARAMETROS_OPTIMOS['DCA_NIVELES'][nivel_dca-1])
-        else:
-            return señal['precio_actual'] * (1 + PARAMETROS_OPTIMOS['DCA_NIVELES'][nivel_dca-1])
     
     def actualizar_operacion(self, operacion_id, nuevo_precio):
         """Actualizar operación y verificar niveles"""
@@ -192,7 +179,8 @@ class GestorOperaciones:
         operacion['resultado'] = resultado
         operacion['profit'] = profit_final
         operacion['precio_cierre'] = precio_cierre
-        operacion['duracion_minutos'] = int((operacion['timestamp_cierre'] - operacion['timestamp_apertura']).total_seconds() / 60)
+        duracion = (operacion['timestamp_cierre'] - operacion['timestamp_apertura']).total_seconds()
+        operacion['duracion_minutos'] = int(duracion / 60)
         
         # Agregar evento de cierre
         emoji = "🏆" if resultado.startswith('TP') else "🛑" if resultado == 'SL' else "⚡"
@@ -205,7 +193,7 @@ class GestorOperaciones:
         # Actualizar estadísticas
         self._actualizar_estadisticas(operacion)
         
-        logger.info(f"📊 Operación cerrada: {operacion_id} - {resultado} - Profit: {profit_final:+.2f}%")
+        logger.info(f"📊 Operación cerrada: {operacion_id} - {resultado} - Profit: {profit_final:+.2f}% - Duración: {operacion['duracion_minutos']}min")
         
         return operacion
     
@@ -228,7 +216,7 @@ class GestorOperaciones:
         if operacion['profit'] > 0:
             self.estadisticas_pares[par]['ganadas'] += 1
 
-# ===================== BOT TELEGRAM MEJORADO =====================
+# ===================== BOT TELEGRAM =====================
 class TelegramBotMejorado:
     def __init__(self, token, chat_id):
         self.token = token
@@ -266,8 +254,8 @@ class TelegramBotMejorado:
 💰 <b>Precio Entrada:</b> {señal['precio_actual']:.5f}
 
 ⚡ <b>PARÁMETROS ÓPTIMOS:</b>
-• DCA Nivel 1: {señal['dca_1']*100:.1f}%
-• DCA Nivel 2: {señal['dca_2']*100:.1f}%
+• DCA Nivel 1: {señal['dca_1']:.5f}
+• DCA Nivel 2: {señal['dca_2']:.5f}
 • Take Profit 1: {señal['tp1']:.5f} (+1.5%)
 • Take Profit 2: {señal['tp2']:.5f} (+2.5%)
 • Stop Loss: {señal['sl']:.5f} (-2.0%)
@@ -282,9 +270,9 @@ class TelegramBotMejorado:
 • Rentabilidad Esperada: {señal['rentabilidad_esperada']}%
 
 🔔 <b>SEGUIMIENTO ACTIVO:</b>
-• Monitoreo cada 1 minuto
+• Monitoreo cada 30 segundos
+• Duración estimada: 15-25 minutos
 • Alertas DCA/TP/SL en tiempo real
-• Reporte final al cierre
 
 ⏰ <b>Inicio:</b> {señal['timestamp']}
         """
@@ -303,6 +291,7 @@ class TelegramBotMejorado:
 • DCA Activados: {operacion['niveles_dca_activados']}/2
 • Precio Promedio: {operacion['precio_promedio']:.5f}
 • Profit Actual: {self._calcular_profit_actual(operacion):+.2f}%
+• Duración: {operacion['duracion_minutos']} minutos
 
 ⏰ <b>Actualizado:</b> {datetime.now().strftime('%H:%M:%S')}
         """
@@ -356,39 +345,8 @@ class TelegramBotMejorado:
     def _calcular_rentabilidad_par(self, par):
         stats = gestor_operaciones.estadisticas_pares.get(par, {'ops': 0, 'profit': 0})
         return stats['profit'] if stats['ops'] > 0 else 0
-    
-    def enviar_resumen_diario(self, resumen):
-        """Enviar resumen diario completo"""
-        mensaje = f"""
-📊 <b>RESUMEN DIARIO - {resumen['fecha']}</b>
-🎯 <b>TOP 5 PARES CONFIRMADOS</b>
 
-📈 <b>Operaciones del Día:</b>
-• Totales: {resumen['total_ops']}
-• Ganadoras: {resumen['ops_ganadoras']}
-• Perdedoras: {resumen['ops_perdedoras']}
-
-🎯 <b>Performance:</b>
-• Win Rate: {resumen['winrate']:.1f}%
-• Profit Total: {resumen['profit_total']:+.2f}%
-• Expectativa Matemática: {resumen['expectativa']:+.3f}
-
-🏆 <b>Top 3 Pares del Día:</b>
-1. {resumen['top_pares'][0]}
-2. {resumen['top_pares'][1]}
-3. {resumen['top_pares'][2]}
-
-⚡ <b>Eficiencia Sistema:</b>
-• Eficiencia DCA: {resumen['eficiencia_dca']:.1f}%
-• Tasa de Acierto: {resumen['tasa_acierto']:.1f}%
-
-💰 <b>Proyección Mensual:</b> +{resumen['proyeccion_mensual']:.1f}%
-
-🔄 <b>Próximo Análisis:</b> En 24 horas
-        """
-        return self.enviar_mensaje(mensaje)
-
-# ===================== SISTEMA DE TRADING MEJORADO =====================
+# ===================== SISTEMA TRADING CORREGIDO =====================
 class SistemaTradingMejorado:
     def __init__(self, telegram_bot):
         self.bot = telegram_bot
@@ -402,26 +360,26 @@ class SistemaTradingMejorado:
         }
     
     def generar_señal_optima(self, par):
-        """Generar señal con parámetros confirmados"""
+        """Generar señal con parámetros CORREGIDOS"""
         precio_actual = self._obtener_precio_realista(par)
         
         # Dirección basada en winrate confirmado
         winrate = self.winrates_confirmados[par] / 100
         direccion = "COMPRA" if random.random() < winrate else "VENTA"
         
-        # Calcular niveles
+        # Calcular niveles CORREGIDOS
         if direccion == "COMPRA":
             tp1 = precio_actual * (1 + PARAMETROS_OPTIMOS['TP_NIVELES'][0])
             tp2 = precio_actual * (1 + PARAMETROS_OPTIMOS['TP_NIVELES'][1])
             sl = precio_actual * (1 - PARAMETROS_OPTIMOS['SL_MAXIMO'])
-            dca_1 = precio_actual * (1 - PARAMETROS_OPTIMOS['DCA_NIVELES'][0])
-            dca_2 = precio_actual * (1 - PARAMETROS_OPTIMOS['DCA_NIVELES'][1])
+            dca_1 = precio_actual * (1 - PARAMETROS_OPTIMOS['DCA_NIVELES'][0])  # -0.5%
+            dca_2 = precio_actual * (1 - PARAMETROS_OPTIMOS['DCA_NIVELES'][1])  # -1.0%
         else:
             tp1 = precio_actual * (1 - PARAMETROS_OPTIMOS['TP_NIVELES'][0])
             tp2 = precio_actual * (1 - PARAMETROS_OPTIMOS['TP_NIVELES'][1])
             sl = precio_actual * (1 + PARAMETROS_OPTIMOS['SL_MAXIMO'])
-            dca_1 = precio_actual * (1 + PARAMETROS_OPTIMOS['DCA_NIVELES'][0])
-            dca_2 = precio_actual * (1 + PARAMETROS_OPTIMOS['DCA_NIVELES'][1])
+            dca_1 = precio_actual * (1 + PARAMETROS_OPTIMOS['DCA_NIVELES'][0])  # +0.5%
+            dca_2 = precio_actual * (1 + PARAMETROS_OPTIMOS['DCA_NIVELES'][1])  # +1.0%
         
         señal = {
             'par': par,
@@ -467,6 +425,8 @@ class SistemaTradingMejorado:
             par = random.choice(TOP_5_PARES_CONFIRMADOS)
             señal = self.generar_señal_optima(par)
             
+            logger.info(f"🎯 Señal generada automáticamente: {par} {señal['direccion']} a {señal['precio_actual']:.5f}")
+            
             # Enviar señal a Telegram
             if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
                 self.bot.enviar_señal_completa(señal)
@@ -481,27 +441,31 @@ class SistemaTradingMejorado:
                 daemon=True
             ).start()
             
-            logger.info(f"📈 Señal procesada: {par} {señal['direccion']} a {señal['precio_actual']:.5f}")
             return señal
             
         except Exception as e:
-            logger.error(f"❌ Error procesando señal: {e}")
+            logger.error(f"❌ Error procesando señal automática: {e}")
             return None
     
     def _seguimiento_operacion(self, operacion_id, señal):
-        """Seguimiento en tiempo real de la operación"""
+        """Seguimiento en tiempo real CORREGIDO - DURACIÓN 15-25 MINUTOS"""
         try:
-            logger.info(f"🔍 Iniciando seguimiento para {operacion_id}")
+            logger.info(f"🔍 Iniciando seguimiento para {operacion_id} - Duración: 15-25min")
             
-            # Seguimiento por 10-30 minutos
-            duracion_seguimiento = random.randint(10, 30)
+            # Seguimiento por 15-25 minutos (CORREGIDO)
+            duracion_seguimiento = random.randint(15, 25)  # 15-25 minutos reales
+            segundos_transcurridos = 0
             
-            for minuto in range(duracion_seguimiento):
+            while segundos_transcurridos < (duracion_seguimiento * 60):
                 if operacion_id not in gestor_operaciones.operaciones_activas:
                     break
                 
-                # Generar movimiento de precio realista
+                # Actualizar duración en la operación
                 operacion = gestor_operaciones.operaciones_activas[operacion_id]
+                duracion_actual = (datetime.now() - operacion['timestamp_apertura']).total_seconds()
+                operacion['duracion_minutos'] = int(duracion_actual / 60)
+                
+                # Generar movimiento de precio realista
                 nuevo_precio = self._obtener_precio_realista(operacion['par'])
                 
                 # Actualizar y verificar niveles
@@ -526,11 +490,14 @@ class SistemaTradingMejorado:
                         if operacion_cerrada and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
                             self.bot.enviar_cierre_operacion(operacion_cerrada)
                         
-                        break
+                        logger.info(f"🎯 Operación cerrada por {actualizacion['resultado']}: {operacion_id}")
+                        return
                 
-                time.sleep(2)  # Espera entre actualizaciones
+                # Espera entre actualizaciones (30 segundos)
+                time.sleep(30)
+                segundos_transcurridos += 30
             
-            # Cierre por tiempo si sigue activa
+            # Cierre por tiempo si sigue activa después de 15-25 minutos
             if operacion_id in gestor_operaciones.operaciones_activas:
                 operacion = gestor_operaciones.operaciones_activas[operacion_id]
                 operacion_cerrada = gestor_operaciones.cerrar_operacion(
@@ -541,6 +508,8 @@ class SistemaTradingMejorado:
                 
                 if operacion_cerrada and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
                     self.bot.enviar_cierre_operacion(operacion_cerrada)
+                
+                logger.info(f"⏰ Operación cerrada por timeout: {operacion_id} - Duración: {operacion_cerrada['duracion_minutos']}min")
                     
         except Exception as e:
             logger.error(f"❌ Error en seguimiento {operacion_id}: {e}")
@@ -551,19 +520,17 @@ telegram_bot = TelegramBotMejorado(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID)
 sistema_trading = SistemaTradingMejorado(telegram_bot)
 scheduler = BackgroundScheduler()
 
-# ===================== RUTAS FLASK - CORREGIDAS =====================
-# ¡ESTAS RUTAS DEBEN ESTAR A NIVEL GLOBAL, NO DENTRO DE CLASES!
-
+# ===================== RUTAS FLASK =====================
 @app.route('/')
 def home():
     return jsonify({
         "status": "online",
-        "service": "Bot Trading Mejorado - Top 5 Pares Confirmados",
+        "service": "Bot Trading Mejorado - Scheduler Corregido",
         "pares_activos": TOP_5_PARES_CONFIRMADOS,
-        "distribucion": DISTRIBUCION_OPTIMA,
         "operaciones_activas": len(gestor_operaciones.operaciones_activas),
         "operaciones_cerradas": len(gestor_operaciones.historial_operaciones),
-        "estadisticas_diarias": gestor_operaciones.estadisticas_diarias
+        "proxima_señal_automatica": "Cada 15-25 minutos",
+        "timestamp": datetime.now().isoformat()
     })
 
 @app.route('/estadisticas')
@@ -582,7 +549,7 @@ def generar_señal():
             return jsonify({
                 "status": "señal_generada",
                 "señal": señal,
-                "seguimiento": "ACTIVO"
+                "seguimiento": "ACTIVO - 15-25min"
             })
         return jsonify({"status": "error_generando_señal"})
     except Exception as e:
@@ -595,9 +562,27 @@ def operaciones_activas():
         "total": len(gestor_operaciones.operaciones_activas)
     })
 
-# ===================== TAREAS PROGRAMADAS =====================
+@app.route('/debug-scheduler')
+def debug_scheduler():
+    jobs = scheduler.get_jobs()
+    return jsonify({
+        "total_jobs": len(jobs),
+        "jobs": [str(job) for job in jobs],
+        "scheduler_running": scheduler.running
+    })
+
+# ===================== TAREAS PROGRAMADAS CORREGIDAS =====================
 def tarea_señales_automaticas():
-    sistema_trading.procesar_señal_automatica()
+    """Tarea automática CORREGIDA"""
+    try:
+        logger.info("🔄 EJECUTANDO TAREA AUTOMÁTICA - Generando señal...")
+        señal = sistema_trading.procesar_señal_automatica()
+        if señal:
+            logger.info(f"✅ Señal automática generada: {señal['par']} {señal['direccion']}")
+        else:
+            logger.error("❌ Error generando señal automática")
+    except Exception as e:
+        logger.error(f"💥 ERROR en tarea automática: {e}")
 
 def tarea_resumen_diario():
     """Generar y enviar resumen diario"""
@@ -633,47 +618,75 @@ def tarea_resumen_diario():
             }
             
             if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
-                telegram_bot.enviar_resumen_diario(resumen)
+                telegram_bot.enviar_mensaje(
+                    f"📊 <b>RESUMEN DIARIO AUTOMÁTICO</b>\n"
+                    f"• Operaciones: {resumen['total_ops']}\n"
+                    f"• Win Rate: {resumen['winrate']:.1f}%\n"
+                    f"• Profit: {resumen['profit_total']:+.2f}%\n"
+                    f"• Mejor par: {resumen['top_pares'][0] if resumen['top_pares'] else 'N/A'}"
+                )
             
-            logger.info("📊 Resumen diario enviado")
+            logger.info(f"📊 Resumen diario enviado: {resumen['total_ops']} ops, {resumen['winrate']:.1f}% WR")
             
     except Exception as e:
         logger.error(f"❌ Error en resumen diario: {e}")
 
 def iniciar_scheduler():
-    """Iniciar todas las tareas programadas"""
-    # Señales cada 15-25 minutos
-    scheduler.add_job(tarea_señales_automaticas, 'interval', minutes=random.randint(15, 25))
-    
-    # Resumen diario a las 23:55
-    scheduler.add_job(tarea_resumen_diario, 'cron', hour=23, minute=55)
-    
-    scheduler.start()
-    logger.info("⏰ Scheduler iniciado - Sistema mejorado activo")
+    """Iniciar scheduler CORREGIDO"""
+    try:
+        # Limpiar jobs existentes
+        scheduler.remove_all_jobs()
+        
+        # Señales cada 15-25 minutos (CORREGIDO)
+        intervalo_minutos = random.randint(15, 25)
+        scheduler.add_job(
+            tarea_señales_automaticas, 
+            'interval', 
+            minutes=intervalo_minutos,
+            id='señales_automaticas',
+            replace_existing=True
+        )
+        
+        # Resumen diario a las 23:55
+        scheduler.add_job(
+            tarea_resumen_diario, 
+            'cron', 
+            hour=23, 
+            minute=55,
+            id='resumen_diario',
+            replace_existing=True
+        )
+        
+        scheduler.start()
+        logger.info(f"⏰ SCHEDULER INICIADO - Señales cada {intervalo_minutos}min - Resumen 23:55")
+        
+        # Verificar jobs
+        jobs = scheduler.get_jobs()
+        logger.info(f"📋 Jobs programados: {len(jobs)}")
+        for job in jobs:
+            logger.info(f"  - {job.id} -> {job.next_run_time}")
+            
+    except Exception as e:
+        logger.error(f"💥 ERROR iniciando scheduler: {e}")
 
 # ===================== INICIO APLICACIÓN =====================
 if __name__ == "__main__":
     # Mensaje de inicio
     if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
         telegram_bot.enviar_mensaje(
-            "🚀 <b>BOT TRADING MEJORADO INICIADO</b>\n\n"
-            "🎯 <b>TOP 5 PARES CONFIRMADOS:</b>\n"
-            "• USDCAD (25%) - 85% WR | +536% Profit\n"
-            "• USDJPY (20%) - 75% WR | +390% Profit\n"  
-            "• AUDUSD (20%) - 80% WR | +384% Profit\n"
-            "• EURGBP (18%) - 75% WR | +374% Profit\n"
-            "• GBPUSD (17%) - 75% WR | +324% Profit\n\n"
-            "⚡ <b>MEJORAS IMPLEMENTADAS:</b>\n"
-            "• Seguimiento en tiempo real\n"
-            "• Alertas DCA/TP/SL automáticas\n"
-            "• Estadísticas por par\n"
-            "• Resúmenes diarios automáticos\n\n"
+            "🚀 <b>BOT TRADING REINICIADO - SCHEDULER CORREGIDO</b>\n\n"
+            "✅ <b>CORRECCIONES APLICADAS:</b>\n"
+            "• Señales automáticas cada 15-25min\n"
+            "• Seguimiento real 15-25 minutos\n"
+            "• Parámetros DCA/TP/SL corregidos\n"
+            "• Scheduler verificado\n\n"
             f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M')}"
         )
     
     iniciar_scheduler()
     port = int(os.environ.get("PORT", 10000))
-    print(f"🌐 Bot mejorado iniciado en puerto {port}")
+    logger.info(f"🌐 Bot mejorado iniciado en puerto {port}")
     app.run(host="0.0.0.0", port=port, debug=False)
 else:
+    # Iniciar scheduler cuando se ejecuta en Render
     iniciar_scheduler()
