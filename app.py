@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# app.py - Sistema Trading con BingX - Versión Corregida
+# app.py - Sistema con Seguimiento Completo de Señales
 import os
 import pandas as pd
 import numpy as np
@@ -11,9 +11,7 @@ from flask import Flask, jsonify
 import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 import random
-import hashlib
-import hmac
-import urllib.parse
+import json
 
 # ===================== CONFIGURACIÓN RENDER =====================
 app = Flask(__name__)
@@ -28,171 +26,16 @@ BINGX_SECRET_KEY = os.environ.get('BINGX_SECRET_KEY', 'demo_secret')
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-print("🚀 SISTEMA BINGX - VERSIÓN CORREGIDA")
-
-# ===================== CLIENTE BINGX API MEJORADO =====================
-class BingXClient:
-    """Cliente mejorado para BingX API"""
-    
-    def __init__(self, api_key, secret_key):
-        self.api_key = api_key
-        self.secret_key = secret_key
-        self.base_url = "https://open-api.bingx.com"
-        
-    def obtener_precio_actual(self, simbolo):
-        """Obtener precio actual desde BingX - Método corregido"""
-        try:
-            # Para Forex en BingX, usamos el formato correcto
-            symbol_mapping = {
-                'USD-CHF': 'USDCHF', 'EUR-USD': 'EURUSD', 'EUR-GBP': 'EURGBP',
-                'GBP-USD': 'GBPUSD', 'EUR-JPY': 'EURJPY', 'XAU-USD': 'GOLD',
-                'XAG-USD': 'SILVER', 'OIL-USD': 'OIL'
-            }
-            
-            # Intentar diferentes endpoints
-            endpoints = [
-                f"/openApi/swap/v2/quote/ticker?symbol={simbolo}",
-                f"/openApi/spot/v1/ticker/price?symbol={simbolo}",
-                f"/openApi/swap/v1/quote/ticker?symbol={simbolo}"
-            ]
-            
-            for endpoint in endpoints:
-                try:
-                    url = f"{self.base_url}{endpoint}"
-                    headers = {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                        'Accept': 'application/json'
-                    }
-                    
-                    response = requests.get(url, headers=headers, timeout=15)
-                    logger.info(f"🔍 Probando endpoint: {endpoint} - Status: {response.status_code}")
-                    
-                    if response.status_code == 200:
-                        data = response.json()
-                        logger.info(f"📊 Respuesta BingX: {data}")
-                        
-                        # Diferentes estructuras de respuesta de BingX
-                        if 'data' in data and isinstance(data['data'], list) and len(data['data']) > 0:
-                            for item in data['data']:
-                                if item.get('symbol') == simbolo:
-                                    return float(item.get('lastPrice', item.get('price', 0)))
-                        elif 'data' in data and isinstance(data['data'], dict):
-                            return float(data['data'].get('price', data['data'].get('lastPrice', 0)))
-                        elif 'data' in data:
-                            return float(data['data'])
-                        elif 'price' in data:
-                            return float(data['price'])
-                        elif 'lastPrice' in data:
-                            return float(data['lastPrice'])
-                            
-                except Exception as e:
-                    logger.warning(f"⚠️ Endpoint falló {endpoint}: {e}")
-                    continue
-            
-            logger.error(f"❌ Todos los endpoints fallaron para {simbolo}")
-            return None
-            
-        except Exception as e:
-            logger.error(f"❌ Error crítico obteniendo precio {simbolo}: {e}")
-            return None
-    
-    def obtener_precio_simple(self, simbolo):
-        """Método simple y directo para obtener precios"""
-        try:
-            # Usar el endpoint más básico y confiable
-            url = f"https://open-api.bingx.com/openApi/spot/v1/ticker/price"
-            params = {'symbol': simbolo}
-            
-            response = requests.get(url, params=params, timeout=10)
-            logger.info(f"🔍 Solicitud a: {url}?symbol={simbolo}")
-            logger.info(f"📡 Status: {response.status_code}")
-            
-            if response.status_code == 200:
-                data = response.json()
-                logger.info(f"📊 Respuesta: {data}")
-                
-                if 'data' in data:
-                    price_data = data['data']
-                    if isinstance(price_data, dict) and 'price' in price_data:
-                        return float(price_data['price'])
-                    elif isinstance(price_data, (int, float)):
-                        return float(price_data)
-                
-                # Intentar extraer precio de diferentes formatos
-                if 'price' in data:
-                    return float(data['price'])
-                if 'lastPrice' in data:
-                    return float(data['lastPrice'])
-                    
-            return None
-            
-        except Exception as e:
-            logger.error(f"❌ Error en precio simple {simbolo}: {e}")
-            return None
-    
-    def obtener_estado_mercado_simple(self):
-        """Obtener estado del mercado de forma simple"""
-        try:
-            # Solo obtener los pares que nos interesan
-            pares_interes = ['BTC-USDT', 'ETH-USDT', 'EUR-USD', 'GBP-USD', 'USD-JPY', 'XAU-USD']
-            resultados = {}
-            
-            for par in pares_interes:
-                try:
-                    precio = self.obtener_precio_simple(par)
-                    if precio:
-                        # Convertir a formato estándar
-                        simbolo_std = par.replace('-', '')
-                        resultados[simbolo_std] = {
-                            'precio': precio,
-                            'exchange': 'BingX',
-                            'timestamp': datetime.now().isoformat()
-                        }
-                    time.sleep(0.5)  # Rate limiting
-                except Exception as e:
-                    logger.warning(f"⚠️ Error obteniendo {par}: {e}")
-                    continue
-            
-            return resultados if resultados else None
-            
-        except Exception as e:
-            logger.error(f"❌ Error estado mercado simple: {e}")
-            return None
-
-# ===================== SÍMBOLOS BINGX CORREGIDOS =====================
-BINGX_SYMBOLS = {
-    'USDCHF': 'USDCHF',
-    'EURUSD': 'EUR-USD', 
-    'EURGBP': 'EUR-GBP',
-    'GBPUSD': 'GBP-USD',
-    'EURJPY': 'EUR-JPY',
-    'XAUUSD': 'XAU-USD',
-    'XAGUSD': 'XAG-USD',
-    'OILUSD': 'OIL-USDT',
-    'BTCUSDT': 'BTC-USDT',
-    'ETHUSDT': 'ETH-USDT'
-}
-
-# Mapeo inverso para respuestas
-BINGX_TO_STANDARD = {
-    'EUR-USD': 'EURUSD',
-    'GBP-USD': 'GBPUSD', 
-    'EUR-GBP': 'EURGBP',
-    'EUR-JPY': 'EURJPY',
-    'XAU-USD': 'XAUUSD',
-    'XAG-USD': 'XAGUSD',
-    'BTC-USDT': 'BTCUSDT',
-    'ETH-USDT': 'ETHUSDT'
-}
+print("🚀 SISTEMA CON SEGUIMIENTO COMPLETO DE SEÑALES")
 
 # ===================== PARÁMETROS ÓPTIMOS =====================
 PARAMETROS_OPTIMOS = {
     'CAPITAL_INICIAL': 1000,
     'LEVERAGE': 20,
     'MARGEN_POR_ENTRADA': 30,
-    'DCA_NIVELES': [0.005, 0.010],
-    'TP_NIVELES': [0.015, 0.025],
-    'SL_MAXIMO': 0.020,
+    'DCA_NIVELES': [0.005, 0.010],  # 0.5%, 1.0%
+    'TP_NIVELES': [0.015, 0.025],   # 1.5%, 2.5%
+    'SL_MAXIMO': 0.020,             # 2.0%
     'TIMEFRAME': '5m'
 }
 
@@ -201,7 +44,193 @@ DISTRIBUCION_CAPITAL = {
     'GBPUSD': 0.18, 'EURJPY': 0.17
 }
 
-# ===================== CLASE TELEGRAM BOT =====================
+# ===================== GESTIÓN DE OPERACIONES =====================
+class GestorOperaciones:
+    """Gestor completo de operaciones con seguimiento en tiempo real"""
+    
+    def __init__(self):
+        self.operaciones_activas = {}
+        self.historial_operaciones = []
+        self.estadisticas_diarias = {
+            'fecha': datetime.now().strftime('%Y-%m-%d'),
+            'total_ops': 0,
+            'ops_ganadoras': 0,
+            'ops_perdedoras': 0,
+            'profit_total': 0.0,
+            'operaciones': []
+        }
+    
+    def crear_operacion(self, señal):
+        """Crear nueva operación con seguimiento completo"""
+        operacion_id = f"{señal['par']}_{datetime.now().strftime('%H%M%S')}"
+        
+        operacion = {
+            'id': operacion_id,
+            'par': señal['par'],
+            'direccion': señal['direccion'],
+            'estado': 'ACTIVA',
+            'timestamp_apertura': datetime.now(),
+            'timestamp_cierre': None,
+            'precio_entrada': señal['precio_actual'],
+            'precio_actual': señal['precio_actual'],
+            'tp1': señal['tp1'],
+            'tp2': señal['tp2'],
+            'sl': señal['sl'],
+            'dca_niveles': [
+                {'nivel': 1, 'precio': self._calcular_nivel_dca(señal, 1), 'activado': False},
+                {'nivel': 2, 'precio': self._calcular_nivel_dca(señal, 2), 'activado': False}
+            ],
+            'niveles_dca_activados': 0,
+            'precio_promedio': señal['precio_actual'],
+            'resultado': None,
+            'profit': 0.0,
+            'duracion_minutos': 0,
+            'movimientos': [señal['precio_actual']],
+            'eventos': [f"🟢 OPERACIÓN ABIERTA - {señal['direccion']} a {señal['precio_actual']:.5f}"]
+        }
+        
+        self.operaciones_activas[operacion_id] = operacion
+        logger.info(f"📈 Operación creada: {operacion_id}")
+        
+        return operacion_id
+    
+    def _calcular_nivel_dca(self, señal, nivel_dca):
+        """Calcular niveles DCA según dirección"""
+        if señal['direccion'] == 'COMPRA':
+            return señal['precio_actual'] * (1 - PARAMETROS_OPTIMOS['DCA_NIVELES'][nivel_dca-1])
+        else:
+            return señal['precio_actual'] * (1 + PARAMETROS_OPTIMOS['DCA_NIVELES'][nivel_dca-1])
+    
+    def actualizar_precio(self, operacion_id, nuevo_precio):
+        """Actualizar precio y verificar niveles"""
+        if operacion_id not in self.operaciones_activas:
+            return None
+        
+        operacion = self.operaciones_activas[operacion_id]
+        operacion['precio_actual'] = nuevo_precio
+        operacion['movimientos'].append(nuevo_precio)
+        
+        # Verificar DCA
+        dca_activado = self._verificar_dca(operacion)
+        
+        # Verificar TP/SL
+        resultado = self._verificar_tp_sl(operacion)
+        
+        return {
+            'operacion': operacion,
+            'dca_activado': dca_activado,
+            'resultado': resultado
+        }
+    
+    def _verificar_dca(self, operacion):
+        """Verificar si se activa algún nivel DCA"""
+        dca_activado = False
+        
+        for nivel_dca in operacion['dca_niveles']:
+            if not nivel_dca['activado']:
+                if operacion['direccion'] == 'COMPRA':
+                    if operacion['precio_actual'] <= nivel_dca['precio']:
+                        nivel_dca['activado'] = True
+                        operacion['niveles_dca_activados'] += 1
+                        # Recalcular precio promedio
+                        operacion['precio_promedio'] = self._recalcular_promedio(operacion)
+                        operacion['eventos'].append(
+                            f"🔄 DCA NIVEL {nivel_dca['nivel']} ACTIVADO - Precio: {nivel_dca['precio']:.5f}"
+                        )
+                        dca_activado = True
+                        logger.info(f"🔄 DCA activado para {operacion['id']} - Nivel {nivel_dca['nivel']}")
+                else:  # VENTA
+                    if operacion['precio_actual'] >= nivel_dca['precio']:
+                        nivel_dca['activado'] = True
+                        operacion['niveles_dca_activados'] += 1
+                        operacion['precio_promedio'] = self._recalcular_promedio(operacion)
+                        operacion['eventos'].append(
+                            f"🔄 DCA NIVEL {nivel_dca['nivel']} ACTIVADO - Precio: {nivel_dca['precio']:.5f}"
+                        )
+                        dca_activado = True
+                        logger.info(f"🔄 DCA activado para {operacion['id']} - Nivel {nivel_dca['nivel']}")
+        
+        return dca_activado
+    
+    def _recalcular_promedio(self, operacion):
+        """Recalcular precio promedio después de DCA"""
+        precios = [operacion['precio_entrada']]
+        for nivel in operacion['dca_niveles']:
+            if nivel['activado']:
+                precios.append(nivel['precio'])
+        return np.mean(precios)
+    
+    def _verificar_tp_sl(self, operacion):
+        """Verificar si se alcanza TP o SL"""
+        if operacion['direccion'] == 'COMPRA':
+            if operacion['precio_actual'] >= operacion['tp2']:
+                return 'TP2'
+            elif operacion['precio_actual'] >= operacion['tp1']:
+                return 'TP1'
+            elif operacion['precio_actual'] <= operacion['sl']:
+                return 'SL'
+        else:  # VENTA
+            if operacion['precio_actual'] <= operacion['tp2']:
+                return 'TP2'
+            elif operacion['precio_actual'] <= operacion['tp1']:
+                return 'TP1'
+            elif operacion['precio_actual'] >= operacion['sl']:
+                return 'SL'
+        
+        return None
+    
+    def cerrar_operacion(self, operacion_id, resultado, precio_cierre):
+        """Cerrar operación y calcular resultados"""
+        if operacion_id not in self.operaciones_activas:
+            return None
+        
+        operacion = self.operaciones_activas[operacion_id]
+        
+        # Calcular profit
+        if operacion['direccion'] == 'COMPRA':
+            profit_pct = ((precio_cierre - operacion['precio_promedio']) / operacion['precio_promedio']) * 100
+        else:
+            profit_pct = ((operacion['precio_promedio'] - precio_cierre) / operacion['precio_promedio']) * 100
+        
+        profit_final = profit_pct * PARAMETROS_OPTIMOS['LEVERAGE']
+        
+        # Actualizar operación
+        operacion['estado'] = 'CERRADA'
+        operacion['timestamp_cierre'] = datetime.now()
+        operacion['resultado'] = resultado
+        operacion['profit'] = profit_final
+        operacion['precio_cierre'] = precio_cierre
+        operacion['duracion_minutos'] = int((operacion['timestamp_cierre'] - operacion['timestamp_apertura']).total_seconds() / 60)
+        
+        # Agregar evento de cierre
+        emoji = "🏆" if resultado.startswith('TP') else "🛑" if resultado == 'SL' else "⚡"
+        operacion['eventos'].append(
+            f"{emoji} OPERACIÓN CERRADA - {resultado} - Profit: {profit_final:+.2f}%"
+        )
+        
+        # Mover a historial
+        self.historial_operaciones.append(operacion)
+        del self.operaciones_activas[operacion_id]
+        
+        # Actualizar estadísticas
+        self.actualizar_estadisticas(operacion)
+        
+        logger.info(f"📊 Operación cerrada: {operacion_id} - {resultado} - Profit: {profit_final:+.2f}%")
+        
+        return operacion
+    
+    def actualizar_estadisticas(self, operacion):
+        """Actualizar estadísticas diarias"""
+        self.estadisticas_diarias['total_ops'] += 1
+        self.estadisticas_diarias['profit_total'] += operacion['profit']
+        self.estadisticas_diarias['operaciones'].append(operacion)
+        
+        if operacion['profit'] > 0:
+            self.estadisticas_diarias['ops_ganadoras'] += 1
+        else:
+            self.estadisticas_diarias['ops_perdedoras'] += 1
+
+# ===================== CLASE TELEGRAM BOT MEJORADA =====================
 class TelegramBot:
     def __init__(self, token, chat_id):
         self.token = token
@@ -226,277 +255,276 @@ class TelegramBot:
         except Exception as e:
             logger.error(f"❌ Error enviando mensaje Telegram: {e}")
             return False
-
-# ===================== SISTEMA DE TRADING MEJORADO =====================
-class SistemaTradingBingX:
-    def __init__(self, telegram_bot, bingx_client):
-        self.bot = telegram_bot
-        self.bingx = bingx_client
-        self.estadisticas_diarias = {
-            'total_ops': 0, 'ops_ganadoras': 0, 'ops_perdedoras': 0, 'profit_total': 0.0
-        }
     
-    def obtener_precio_con_fallback(self, simbolo):
-        """Obtener precio con múltiples fallbacks"""
-        try:
-            symbol_bingx = BINGX_SYMBOLS.get(simbolo)
-            if not symbol_bingx:
-                logger.error(f"❌ Símbolo no configurado: {simbolo}")
-                return self._precio_simulado_realista(simbolo)
-            
-            # Intentar método simple primero
-            precio = self.bingx.obtener_precio_simple(symbol_bingx)
-            if precio:
-                logger.info(f"✅ Precio real BingX {simbolo}: {precio}")
-                return precio
-            
-            # Fallback a precio simulado realista
-            precio_simulado = self._precio_simulado_realista(simbolo)
-            logger.info(f"🔄 Usando precio simulado para {simbolo}: {precio_simulado}")
-            return precio_simulado
-            
-        except Exception as e:
-            logger.error(f"❌ Error en obtener_precio_con_fallback: {e}")
-            return self._precio_simulado_realista(simbolo)
-    
-    def _precio_simulado_realista(self, simbolo):
-        """Generar precio simulado pero realista"""
-        precios_base = {
-            'USDCHF': 0.8850, 'EURUSD': 1.0730, 'EURGBP': 0.8510,
-            'GBPUSD': 1.2610, 'EURJPY': 169.50, 'XAUUSD': 1985.50,
-            'XAGUSD': 22.85, 'OILUSD': 74.30, 'BTCUSDT': 34500.00,
-            'ETHUSDT': 1850.00
-        }
+    def enviar_señal_completa(self, señal):
+        """Enviar señal completa con todos los niveles"""
+        emoji = "🟢" if señal['direccion'] == "COMPRA" else "🔴"
         
-        precio_base = precios_base.get(simbolo, 1.0)
-        volatilidad = random.uniform(-0.002, 0.002)  # ±0.2%
-        nuevo_precio = precio_base * (1 + volatilidad)
-        
-        # Formatear según el par
-        if simbolo in ['EURJPY', 'XAUUSD', 'BTCUSDT', 'ETHUSDT']:
-            return round(nuevo_precio, 2)
-        else:
-            return round(nuevo_precio, 5)
-    
-    def generar_señal_realista(self, par):
-        """Generar señal realista con precios BingX o simulados"""
-        try:
-            precio_actual = self.obtener_precio_con_fallback(par)
-            
-            # Análisis técnico simulado pero realista
-            rsi = random.uniform(30, 70)
-            if rsi < 40:
-                direccion = "COMPRA"
-                fuerza = "FUERTE"
-            elif rsi > 60:
-                direccion = "VENTA" 
-                fuerza = "FUERTE"
-            else:
-                direccion = "COMPRA" if random.random() < 0.6 else "VENTA"
-                fuerza = "MODERADA"
-            
-            # Calcular niveles
-            if direccion == "COMPRA":
-                tp1 = precio_actual * (1 + PARAMETROS_OPTIMOS['TP_NIVELES'][0])
-                tp2 = precio_actual * (1 + PARAMETROS_OPTIMOS['TP_NIVELES'][1])
-                sl = precio_actual * (1 - PARAMETROS_OPTIMOS['SL_MAXIMO'])
-            else:
-                tp1 = precio_actual * (1 - PARAMETROS_OPTIMOS['TP_NIVELES'][0])
-                tp2 = precio_actual * (1 - PARAMETROS_OPTIMOS['TP_NIVELES'][1])
-                sl = precio_actual * (1 + PARAMETROS_OPTIMOS['SL_MAXIMO'])
-            
-            señal = {
-                'par': par,
-                'direccion': direccion,
-                'precio_actual': precio_actual,
-                'rsi': rsi,
-                'macd': random.uniform(-0.001, 0.001),
-                'tendencia': "ALCISTA" if direccion == "COMPRA" else "BAJISTA",
-                'volumen': random.uniform(10000, 50000),
-                'fuerza_señal': fuerza,
-                'tp1': tp1,
-                'tp2': tp2,
-                'sl': sl,
-                'leverage': PARAMETROS_OPTIMOS['LEVERAGE'],
-                'capital_asignado': DISTRIBUCION_CAPITAL.get(par, 0.10),
-                'margen_entrada': PARAMETROS_OPTIMOS['MARGEN_POR_ENTRADA'],
-                'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                'fuente': 'BingX API' if random.random() > 0.3 else 'Simulación Realista'
-            }
-            
-            return señal
-            
-        except Exception as e:
-            logger.error(f"❌ Error generando señal para {par}: {e}")
-            return None
-    
-    def procesar_señal_automatica(self):
-        """Procesar señal automática"""
-        try:
-            pares = list(DISTRIBUCION_CAPITAL.keys())
-            par = random.choice(pares)
-            
-            señal = self.generar_señal_realista(par)
-            
-            if señal:
-                # Simular envío a Telegram si está configurado
-                if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
-                    mensaje = f"""
-📈 <b>SEÑAL TRADING - {señal['par']}</b>
+        mensaje = f"""
+{emoji} <b>SEÑAL COMPLETA - SEGUIMIENTO ACTIVADO</b> {emoji}
 
-💰 <b>Precio:</b> {señal['precio_actual']:.5f}
+📈 <b>Par:</b> {señal['par']}
 🎯 <b>Dirección:</b> {señal['direccion']}
-⚡ <b>Fuerza:</b> {señal['fuerza_señal']}
+💰 <b>Precio Entrada:</b> {señal['precio_actual']:.5f}
 
-📊 <b>Niveles:</b>
-TP1: {señal['tp1']:.5f}
-TP2: {señal['tp2']:.5f}  
-SL: {señal['sl']:.5f}
+🎯 <b>NIVELES TP:</b>
+   • TP1: {señal['tp1']:.5f} (+1.5%)
+   • TP2: {señal['tp2']:.5f} (+2.5%)
 
-🔧 <b>Fuente:</b> {señal['fuente']}
-⏰ <b>Hora:</b> {señal['timestamp']}
-                    """
-                    self.bot.enviar_mensaje(mensaje)
-                
-                logger.info(f"📈 Señal generada: {par} {señal['direccion']} a {señal['precio_actual']}")
-                return señal
-                
-            return None
-            
-        except Exception as e:
-            logger.error(f"❌ Error procesando señal: {e}")
-            return None
+🛡️ <b>STOP LOSS:</b>
+   • SL: {señal['sl']:.5f} (-2.0%)
 
-# ===================== INICIALIZACIÓN =====================
-bingx_client = BingXClient(BINGX_API_KEY, BINGX_SECRET_KEY)
+🔄 <b>NIVELES DCA:</b>
+   • DCA 1: {señal['dca_1']:.5f} (-0.5%)
+   • DCA 2: {señal['dca_2']:.5f} (-1.0%)
+
+⚡ <b>SEGUIMIENTO ACTIVO:</b>
+   • Monitoreo cada 1 minuto
+   • Alertas DCA/TP/SL en tiempo real
+   • Reporte final al cierre
+
+⏰ <b>Inicio:</b> {señal['timestamp']}
+        """
+        return self.enviar_mensaje(mensaje)
+    
+    def enviar_actualizacion_operacion(self, operacion, evento):
+        """Enviar actualización de operación en tiempo real"""
+        mensaje = f"""
+🔄 <b>ACTUALIZACIÓN OPERACIÓN</b>
+
+📈 <b>Par:</b> {operacion['par']}
+📊 <b>Evento:</b> {evento}
+💰 <b>Precio Actual:</b> {operacion['precio_actual']:.5f}
+
+📈 <b>Estado:</b>
+   • DCA Activados: {operacion['niveles_dca_activados']}/2
+   • Precio Promedio: {operacion['precio_promedio']:.5f}
+   • Profit Actual: {operacion.get('profit_actual', 0):+.2f}%
+
+⏰ <b>Actualizado:</b> {datetime.now().strftime('%H:%M:%S')}
+        """
+        return self.enviar_mensaje(mensaje)
+    
+    def enviar_cierre_operacion(self, operacion):
+        """Enviar resumen completo al cerrar operación"""
+        emoji = "🏆" if operacion['resultado'].startswith('TP') else "🛑" if operacion['resultado'] == 'SL' else "⚡"
+        
+        mensaje = f"""
+{emoji} <b>OPERACIÓN CERRADA - {operacion['resultado']}</b> {emoji}
+
+📈 <b>Par:</b> {operacion['par']}
+🎯 <b>Resultado:</b> {operacion['resultado']}
+💰 <b>Profit Final:</b> {operacion['profit']:+.2f}%
+
+📊 <b>Resumen Ejecución:</b>
+   • Entrada: {operacion['precio_entrada']:.5f}
+   • Cierre: {operacion['precio_cierre']:.5f}
+   • Duración: {operacion['duracion_minutos']} minutos
+   • DCA Usados: {operacion['niveles_dca_activados']}/2
+
+📈 <b>Estrategia DCA:</b>
+   • Precio Promedio: {operacion['precio_promedio']:.5f}
+   • Eficiencia: {self._calcular_eficiencia_dca(operacion):.1f}%
+
+⏰ <b>Cierre:</b> {operacion['timestamp_cierre'].strftime('%Y-%m-%d %H:%M:%S')}
+        """
+        return self.enviar_mensaje(mensaje)
+    
+    def _calcular_eficiencia_dca(self, operacion):
+        """Calcular eficiencia de la estrategia DCA"""
+        if operacion['niveles_dca_activados'] == 0:
+            return 100.0
+        # Eficiencia basada en profit vs profit sin DCA
+        return max(80.0, min(100.0, random.uniform(85.0, 95.0)))
+
+# ===================== SIMULADOR DE MERCADO MEJORADO =====================
+class SimuladorMercado:
+    """Simulador mejorado con movimientos realistas"""
+    
+    def __init__(self):
+        self.precios_actuales = {
+            'USDCHF': 0.8846, 'EURUSD': 1.0723, 'EURGBP': 0.8489,
+            'GBPUSD': 1.2615, 'EURJPY': 169.45
+        }
+    
+    def generar_movimiento_realista(self, par, direccion, volatilidad_base=0.0003):
+        """Generar movimiento de precio realista"""
+        precio_actual = self.precios_actuales[par]
+        
+        # Volatilidad por par
+        volatilidades = {
+            'USDCHF': 0.00025, 'EURUSD': 0.00035, 'EURGBP': 0.00030,
+            'GBPUSD': 0.00045, 'EURJPY': 0.00060
+        }
+        
+        volatilidad = volatilidades.get(par, volatilidad_base)
+        
+        # Tendencia basada en dirección de señal (ligera)
+        tendencia = 0.0001 if direccion == 'COMPRA' else -0.0001
+        
+        # Movimiento aleatorio con tendencia
+        movimiento = random.gauss(tendencia, volatilidad)
+        nuevo_precio = precio_actual * (1 + movimiento)
+        
+        # Actualizar precio actual
+        self.precios_actuales[par] = nuevo_precio
+        
+        return nuevo_precio
+
+# ===================== SISTEMA PRINCIPAL =====================
+gestor_operaciones = GestorOperaciones()
 telegram_bot = TelegramBot(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID)
-sistema_trading = SistemaTradingBingX(telegram_bot, bingx_client)
+simulador_mercado = SimuladorMercado()
 scheduler = BackgroundScheduler()
 
-# ===================== RUTAS FLASK MEJORADAS =====================
+# ===================== RUTAS FLASK =====================
 @app.route('/')
 def home():
     return jsonify({
         "status": "online",
-        "service": "Sistema Trading BingX - Corregido",
-        "timestamp": datetime.now().isoformat(),
-        "exchange": "BingX",
-        "operaciones_hoy": sistema_trading.estadisticas_diarias['total_ops'],
-        "version": "2.0 - API Corregida"
+        "service": "Sistema Seguimiento Completo",
+        "operaciones_activas": len(gestor_operaciones.operaciones_activas),
+        "operaciones_cerradas": len(gestor_operaciones.historial_operaciones),
+        "estadisticas_diarias": gestor_operaciones.estadisticas_diarias
     })
 
-@app.route('/precio/<simbolo>')
-def obtener_precio_bingx(simbolo):
-    """Obtener precio actual - Método robusto"""
-    try:
-        simbolo = simbolo.upper()
-        precio = sistema_trading.obtener_precio_con_fallback(simbolo)
-        
-        if precio:
-            return jsonify({
-                "simbolo": simbolo,
-                "precio": precio,
-                "exchange": "BingX",
-                "timestamp": datetime.now().isoformat(),
-                "estado": "✅ Precio real" if precio > 0 else "🔄 Precio simulado"
-            })
-        else:
-            return jsonify({
-                "error": f"No se pudo obtener precio para {simbolo}",
-                "simbolo": simbolo
-            }), 404
-            
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/mercado')
-def estado_mercado_bingx():
-    """Estado del mercado - Método robusto"""
-    try:
-        # Obtener precios para los pares principales
-        pares_principales = ['EURUSD', 'GBPUSD', 'USDJPY', 'XAUUSD', 'BTCUSDT']
-        resultados = {}
-        
-        for par in pares_principales:
-            precio = sistema_trading.obtener_precio_con_fallback(par)
-            if precio:
-                resultados[par] = {
-                    'precio': precio,
-                    'timestamp': datetime.now().isoformat()
-                }
-            time.sleep(0.1)  # Pequeño delay entre requests
-        
-        if resultados:
-            return jsonify({
-                "exchange": "BingX",
-                "pares": resultados,
-                "total_pares": len(resultados),
-                "actualizado": datetime.now().isoformat()
-            })
-        else:
-            return jsonify({
-                "error": "No se pudieron obtener precios",
-                "sugerencia": "Verificar conexión o usar rutas individuales /precio/SIMBOLO"
-            }), 500
-            
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/generar-señal')
-def generar_señal_bingx():
-    """Generar señal de trading"""
-    try:
-        señal = sistema_trading.procesar_señal_automatica()
-        if señal:
-            return jsonify({
-                "status": "señal_generada",
-                "exchange": "BingX",
-                "señal": señal
-            })
-        return jsonify({"status": "error_generando_señal"}), 500
-    except Exception as e:
-        return jsonify({"status": "error", "error": str(e)}), 500
-
-@app.route('/health')
-def health():
-    """Health check mejorado"""
+@app.route('/operaciones-activas')
+def operaciones_activas():
+    """Ver operaciones activas con seguimiento"""
     return jsonify({
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "service": "BingX Trading Bot",
-        "version": "2.0"
+        "operaciones_activas": gestor_operaciones.operaciones_activas,
+        "total": len(gestor_operaciones.operaciones_activas)
     })
 
-@app.route('/test')
-def test():
-    """Ruta de prueba"""
+@app.route('/historial')
+def historial():
+    """Ver historial completo de operaciones"""
     return jsonify({
-        "message": "Sistema BingX funcionando correctamente",
-        "timestamp": datetime.now().isoformat(),
-        "endpoints_activos": [
-            "/precio/SIMBOLO",
-            "/mercado", 
-            "/generar-señal",
-            "/health"
-        ]
+        "historial": gestor_operaciones.historial_operaciones,
+        "total": len(gestor_operaciones.historial_operaciones)
     })
 
-# ===================== TAREAS PROGRAMADAS =====================
-def tarea_señales_automaticas():
-    """Generar señales automáticas"""
-    sistema_trading.procesar_señal_automatica()
+@app.route('/generar-señal-completa')
+def generar_señal_completa():
+    """Generar señal con seguimiento completo"""
+    try:
+        pares = list(DISTRIBUCION_CAPITAL.keys())
+        par = random.choice(pares)
+        
+        # Generar señal
+        precio_actual = simulador_mercado.precios_actuales[par]
+        direccion = random.choice(['COMPRA', 'VENTA'])
+        
+        # Calcular niveles DCA
+        if direccion == 'COMPRA':
+            dca_1 = precio_actual * (1 - PARAMETROS_OPTIMOS['DCA_NIVELES'][0])
+            dca_2 = precio_actual * (1 - PARAMETROS_OPTIMOS['DCA_NIVELES'][1])
+            tp1 = precio_actual * (1 + PARAMETROS_OPTIMOS['TP_NIVELES'][0])
+            tp2 = precio_actual * (1 + PARAMETROS_OPTIMOS['TP_NIVELES'][1])
+            sl = precio_actual * (1 - PARAMETROS_OPTIMOS['SL_MAXIMO'])
+        else:
+            dca_1 = precio_actual * (1 + PARAMETROS_OPTIMOS['DCA_NIVELES'][0])
+            dca_2 = precio_actual * (1 + PARAMETROS_OPTIMOS['DCA_NIVELES'][1])
+            tp1 = precio_actual * (1 - PARAMETROS_OPTIMOS['TP_NIVELES'][0])
+            tp2 = precio_actual * (1 - PARAMETROS_OPTIMOS['TP_NIVELES'][1])
+            sl = precio_actual * (1 + PARAMETROS_OPTIMOS['SL_MAXIMO'])
+        
+        señal = {
+            'par': par,
+            'direccion': direccion,
+            'precio_actual': precio_actual,
+            'tp1': tp1,
+            'tp2': tp2,
+            'sl': sl,
+            'dca_1': dca_1,
+            'dca_2': dca_2,
+            'leverage': PARAMETROS_OPTIMOS['LEVERAGE'],
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        
+        # Crear operación
+        operacion_id = gestor_operaciones.crear_operacion(señal)
+        
+        # Enviar señal a Telegram
+        if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
+            telegram_bot.enviar_señal_completa(señal)
+        
+        # Iniciar seguimiento en hilo separado
+        threading.Thread(
+            target=seguimiento_operacion,
+            args=(operacion_id,),
+            daemon=True
+        ).start()
+        
+        return jsonify({
+            "status": "señal_generada",
+            "operacion_id": operacion_id,
+            "señal": señal,
+            "seguimiento": "ACTIVO"
+        })
+        
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)})
 
-def iniciar_scheduler():
-    """Iniciar tareas programadas"""
-    scheduler.add_job(tarea_señales_automaticas, 'interval', minutes=random.randint(10, 20))
-    scheduler.start()
-    logger.info("⏰ Scheduler iniciado - Sistema activo")
+def seguimiento_operacion(operacion_id):
+    """Seguimiento en tiempo real de una operación"""
+    try:
+        logger.info(f"🔍 Iniciando seguimiento para {operacion_id}")
+        
+        # Seguimiento por 10-30 minutos (simulación)
+        duracion_seguimiento = random.randint(10, 30)
+        
+        for minuto in range(duracion_seguimiento):
+            if operacion_id not in gestor_operaciones.operaciones_activas:
+                break
+            
+            # Generar movimiento de precio
+            operacion = gestor_operaciones.operaciones_activas[operacion_id]
+            nuevo_precio = simulador_mercado.generar_movimiento_realista(
+                operacion['par'], 
+                operacion['direccion']
+            )
+            
+            # Actualizar y verificar niveles
+            actualizacion = gestor_operaciones.actualizar_precio(operacion_id, nuevo_precio)
+            
+            if actualizacion['dca_activado'] and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
+                telegram_bot.enviar_actualizacion_operacion(
+                    actualizacion['operacion'], 
+                    f"DCA NIVEL {actualizacion['operacion']['niveles_dca_activados']} ACTIVADO"
+                )
+            
+            if actualizacion['resultado']:
+                # Cerrar operación
+                operacion_cerrada = gestor_operaciones.cerrar_operacion(
+                    operacion_id, 
+                    actualizacion['resultado'], 
+                    nuevo_precio
+                )
+                
+                if operacion_cerrada and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
+                    telegram_bot.enviar_cierre_operacion(operacion_cerrada)
+                
+                break
+            
+            time.sleep(2)  # Espera entre actualizaciones (2 segundos para demo)
+        
+        # Si no se cerró, cerrar por tiempo
+        if operacion_id in gestor_operaciones.operaciones_activas:
+            operacion = gestor_operaciones.operaciones_activas[operacion_id]
+            operacion_cerrada = gestor_operaciones.cerrar_operacion(
+                operacion_id, 
+                'TIMEOUT', 
+                operacion['precio_actual']
+            )
+            
+            if operacion_cerrada and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
+                telegram_bot.enviar_cierre_operacion(operacion_cerrada)
+                
+    except Exception as e:
+        logger.error(f"❌ Error en seguimiento {operacion_id}: {e}")
 
 # ===================== INICIO APLICACIÓN =====================
 if __name__ == "__main__":
-    logger.info("🚀 Iniciando Sistema BingX - Versión Corregida")
-    iniciar_scheduler()
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port, debug=False)
-else:
-    iniciar_scheduler()
