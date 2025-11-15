@@ -551,7 +551,9 @@ telegram_bot = TelegramBotMejorado(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID)
 sistema_trading = SistemaTradingMejorado(telegram_bot)
 scheduler = BackgroundScheduler()
 
-# ===================== RUTAS FLASK =====================
+# ===================== RUTAS FLASK - CORREGIDAS =====================
+# ¡ESTAS RUTAS DEBEN ESTAR A NIVEL GLOBAL, NO DENTRO DE CLASES!
+
 @app.route('/')
 def home():
     return jsonify({
