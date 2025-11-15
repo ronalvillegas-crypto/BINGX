@@ -552,6 +552,7 @@ def generar_señal():
                 "seguimiento": "ACTIVO - 15-25min"
             })
         return jsonify({"status": "error_generando_señal"})
+
     except Exception as e:
         return jsonify({"status": "error", "error": str(e)})
 
@@ -669,24 +670,54 @@ def iniciar_scheduler():
     except Exception as e:
         logger.error(f"💥 ERROR iniciando scheduler: {e}")
 
-# ===================== INICIO APLICACIÓN =====================
-if __name__ == "__main__":
-    # Mensaje de inicio
-    if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
-        telegram_bot.enviar_mensaje(
-            "🚀 <b>BOT TRADING REINICIADO - SCHEDULER CORREGIDO</b>\n\n"
-            "✅ <b>CORRECCIONES APLICADAS:</b>\n"
-            "• Señales automáticas cada 15-25min\n"
-            "• Seguimiento real 15-25 minutos\n"
-            "• Parámetros DCA/TP/SL corregidos\n"
-            "• Scheduler verificado\n\n"
-            f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M')}"
-        )
+# ===================== INICIO APLICACIÓN CORREGIDO =====================
+def main():
+    """Función principal que asegura el inicio del scheduler"""
+    print("🚀 INICIANDO BOT TRADING MEJORADO...")
     
-    iniciar_scheduler()
+    # Mensaje de inicio en Telegram
+    if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
+        try:
+            telegram_bot.enviar_mensaje(
+                "🚀 <b>BOT TRADING INICIADO - MODO AUTOMÁTICO</b>\n\n"
+                "✅ <b>SCHEDULER ACTIVADO:</b>\n"
+                "• Señales automáticas cada 15-25min\n"
+                "• Seguimiento en tiempo real\n"
+                "• Resumen diario 23:55\n\n"
+                f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            )
+        except Exception as e:
+            print(f"⚠️ Error enviando mensaje Telegram: {e}")
+    
+    # INICIAR SCHEDULER SIEMPRE
+    try:
+        iniciar_scheduler()
+        print("✅ SCHEDULER INICIADO - Sistema automático activado")
+        
+        # Verificar jobs programados
+        jobs = scheduler.get_jobs()
+        print(f"📋 Jobs activos: {len(jobs)}")
+        for job in jobs:
+            print(f"   - {job.id} -> {job.next_run_time}")
+            
+    except Exception as e:
+        print(f"💥 ERROR CRÍTICO en scheduler: {e}")
+        # Intentar nuevamente después de 10 segundos
+        time.sleep(10)
+        try:
+            iniciar_scheduler()
+            print("✅ SCHEDULER REINICIADO - Segunda attempt")
+        except Exception as e2:
+            print(f"💥 ERROR PERMANENTE en scheduler: {e2}")
+
+# EJECUTAR INICIO INMEDIATO
+main()
+
+# Iniciar servidor Flask
+if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
-    logger.info(f"🌐 Bot mejorado iniciado en puerto {port}")
+    print(f"🌐 Iniciando servidor Flask en puerto {port}")
     app.run(host="0.0.0.0", port=port, debug=False)
 else:
-    # Iniciar scheduler cuando se ejecuta en Render
-    iniciar_scheduler()
+    # Para entornos como Render que no ejecutan __main__
+    print("🔧 Entorno de producción detectado - Aplicación lista")
