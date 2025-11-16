@@ -1,105 +1,90 @@
 #!/usr/bin/env python3
-# app.py - Bot Trading Mejorado - Versión Estable
+# app.py - Servidor principal que une todos los módulos
 import os
 import time
 import random
-import requests
-from datetime import datetime
+import threading
 from flask import Flask, jsonify
+from config import TOP_5_PARES
+from estrategia_dca import EstrategiaDCA
+from gestor_operaciones import GestorOperaciones
+from telegram_bot import TelegramBotReal
 
 app = Flask(__name__)
 
-# Configuración
-TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
-TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
+# Inicializar módulos
+estrategia = EstrategiaDCA()
+gestor = GestorOperaciones()
+telegram = TelegramBotReal()
 
-print("🚀 BOT TRADING - VERSIÓN ESTABLE INICIADA")
+print("🚀 BOT TRADING REAL INICIADO - ARQUITECTURA MODULAR")
 
-# Parámetros
-PARES = ['USDCAD', 'USDJPY', 'AUDUSD', 'EURGBP', 'GBPUSD']
-BACKTESTING = {
-    'USDCAD': {'winrate': 85.0, 'profit': 536.5},
-    'USDJPY': {'winrate': 75.0, 'profit': 390.1},
-    'AUDUSD': {'winrate': 80.0, 'profit': 383.9},
-    'EURGBP': {'winrate': 75.0, 'profit': 373.9},
-    'GBPUSD': {'winrate': 75.0, 'profit': 324.4}
-}
-
-class TelegramBot:
-    def __init__(self, token, chat_id):
-        self.token = token
-        self.chat_id = chat_id
-    
-    def enviar(self, mensaje):
-        try:
-            if not self.token or not self.chat_id:
-                return False
-            url = f"https://api.telegram.org/bot{self.token}/sendMessage"
-            payload = {
-                'chat_id': self.chat_id,
-                'text': mensaje,
-                'parse_mode': 'HTML'
-            }
-            response = requests.post(url, json=payload, timeout=10)
-            return response.status_code == 200
-        except:
-            return False
-
-bot = TelegramBot(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID)
+def seguir_operacion(operacion_id):
+    """Seguir operación en tiempo real"""
+    for _ in range(10):  # 10 actualizaciones
+        time.sleep(5)  # Cada 5 segundos
+        
+        resultado = gestor.simular_seguimiento(operacion_id)
+        
+        if resultado and resultado['resultado']:
+            # Operación cerrada - enviar notificación
+            telegram.enviar_cierre_operacion(resultado['operacion'])
+            break
 
 @app.route('/')
 def home():
     return jsonify({
         "status": "online",
-        "service": "Bot Trading Estable",
-        "pares": PARES,
-        "timestamp": datetime.now().isoformat()
+        "service": "Bot Trading Real - Arquitectura Modular",
+        "modulos_activos": [
+            "Estrategia DCA", "Gestor Operaciones", "Telegram Bot"
+        ],
+        "estadisticas": gestor.estadisticas,
+        "operaciones_activas": len(gestor.operaciones_activas)
     })
 
-@app.route('/generar-señal')
-def generar_señal():
+@app.route('/generar-operacion-real')
+def generar_operacion_real():
+    """Generar operación REAL con estrategia completa"""
     try:
-        par = random.choice(PARES)
-        datos = BACKTESTING[par]
-        direccion = random.choice(['COMPRA', 'VENTA'])
+        # 1. Seleccionar par
+        par = random.choice(TOP_5_PARES)
         
-        mensaje = f"""
-📈 <b>SEÑAL {par}</b>
-🎯 {direccion}
-📊 WR: {datos['winrate']}% | Profit: {datos['profit']}%
-⏰ {datetime.now().strftime('%H:%M:%S')}
-        """
+        # 2. Generar señal REAL
+        señal = estrategia.generar_señal_real(par)
         
-        # Enviar a Telegram
-        telegram_ok = bot.enviar(mensaje.strip())
+        # 3. Abrir operación
+        operacion_id = gestor.abrir_operacion(señal)
+        
+        # 4. Enviar a Telegram
+        telegram.enviar_señal_completa(señal)
+        
+        # 5. Iniciar seguimiento en hilo separado
+        threading.Thread(
+            target=seguir_operacion,
+            args=(operacion_id,),
+            daemon=True
+        ).start()
         
         return jsonify({
-            "status": "success",
-            "señal": {
-                "par": par,
-                "direccion": direccion,
-                "winrate": datos['winrate'],
-                "profit": datos['profit'],
-                "telegram_enviado": telegram_ok
-            }
+            "status": "operacion_creada",
+            "operacion_id": operacion_id,
+            "señal": señal,
+            "seguimiento": "ACTIVO"
         })
+        
     except Exception as e:
         return jsonify({"status": "error", "error": str(e)})
 
-@app.route('/test-telegram')
-def test_telegram():
-    mensaje = f"✅ TEST - {datetime.now().strftime('%H:%M:%S')}"
-    enviado = bot.enviar(mensaje)
+@app.route('/estadisticas-reales')
+def estadisticas_reales():
     return jsonify({
-        "telegram_configurado": bool(TELEGRAM_TOKEN and TELEGRAM_CHAT_ID),
-        "mensaje_enviado": enviado
+        "estadisticas": gestor.estadisticas,
+        "operaciones_activas": gestor.operaciones_activas,
+        "historial_reciente": gestor.historial[-5:] if gestor.historial else []
     })
-
-@app.route('/health')
-def health():
-    return jsonify({"status": "healthy"})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
-    print(f"🌐 Servidor iniciado en puerto {port}")
+    print(f"🌐 Servidor modular iniciado en puerto {port}")
     app.run(host="0.0.0.0", port=port, debug=False)

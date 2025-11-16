@@ -1,0 +1,87 @@
+# telegram_bot.py - Comunicaciones REALES
+import requests
+import logging
+from config import TELEGRAM_TOKEN, TELEGRAM_CHAT_ID
+
+logger = logging.getLogger(__name__)
+
+class TelegramBotReal:
+    def __init__(self):
+        self.token = TELEGRAM_TOKEN
+        self.chat_id = TELEGRAM_CHAT_ID
+    
+    def enviar_mensaje(self, mensaje, parse_mode='HTML'):
+        """Enviar mensaje REAL a Telegram"""
+        try:
+            if not self.token or not self.chat_id:
+                return False
+                
+            url = f"https://api.telegram.org/bot{self.token}/sendMessage"
+            payload = {
+                'chat_id': self.chat_id,
+                'text': mensaje,
+                'parse_mode': parse_mode,
+                'disable_web_page_preview': True
+            }
+            
+            response = requests.post(url, json=payload, timeout=10)
+            return response.status_code == 200
+            
+        except Exception as e:
+            logger.error(f"Error Telegram: {e}")
+            return False
+    
+    def enviar_señal_completa(self, señal):
+        """Enviar señal COMPLETA con todos los detalles"""
+        emoji = "🟢" if señal['direccion'] == "COMPRA" else "🔴"
+        
+        mensaje = f"""
+{emoji} <b>SEÑAL DCA CONFIRMADA</b> {emoji}
+
+🏆 <b>Par:</b> {señal['par']}
+🎯 <b>Dirección:</b> {señal['direccion']}
+💰 <b>Precio:</b> {señal['precio_actual']:.5f}
+
+📊 <b>Análisis:</b>
+• RSI: {señal['rsi']}
+• Tendencia: {señal['tendencia']}
+• Confianza: Alta
+
+⚡ <b>Estrategia DCA:</b>
+• Entrada: {señal['precio_actual']:.5f}
+• DCA 1: {señal['dca_1']:.5f} (-0.4%)
+• DCA 2: {señal['dca_2']:.5f} (-0.8%)
+• TP1: {señal['tp1']:.5f} (+1.2%)
+• TP2: {señal['tp2']:.5f} (+2.0%)
+• SL: {señal['sl']:.5f} (-1.5%)
+
+🎯 <b>Backtesting:</b>
+• WR Esperado: {señal['winrate_esperado']}%
+• Profit Esperado: {señal['rentabilidad_esperada']}%
+
+⏰ <b>Hora:</b> {señal['timestamp']}
+        """
+        
+        return self.enviar_mensaje(mensaje.strip())
+    
+    def enviar_cierre_operacion(self, operacion):
+        """Enviar cierre REAL de operación"""
+        emoji = "🏆" if operacion['profit'] > 0 else "🛑"
+        
+        mensaje = f"""
+{emoji} <b>OPERACIÓN CERRADA</b> {emoji}
+
+📈 <b>Par:</b> {operacion['par']}
+🎯 <b>Resultado:</b> {operacion['resultado']}
+💰 <b>Profit:</b> {operacion['profit']:+.2f}%
+
+📊 <b>Resumen:</b>
+• Entrada: {operacion['precio_entrada']:.5f}
+• Cierre: {operacion['precio_cierre']:.5f}
+• DCA Usados: {operacion['niveles_dca_activados']}/2
+• Precio Promedio: {operacion['precio_promedio']:.5f}
+
+⏰ <b>Duración:</b> {operacion['timestamp_cierre'].strftime('%H:%M:%S')}
+        """
+        
+        return self.enviar_mensaje(mensaje.strip())
