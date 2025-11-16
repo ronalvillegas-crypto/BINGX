@@ -1,4 +1,4 @@
-# app.py - Servidor con monitoreo en tiempo real
+# app.py - Servidor con monitoreo en tiempo real (CORREGIDO)
 import os
 import threading
 from flask import Flask, jsonify
@@ -7,6 +7,9 @@ from monitor_mercado import monitor
 app = Flask(__name__)
 
 print("🚀 BOT TRADING - MONITOREO EN TIEMPO REAL")
+
+# Variable para controlar si ya iniciamos el monitoreo
+monitoreo_iniciado = False
 
 @app.route('/')
 def home():
@@ -24,8 +27,11 @@ def home():
 @app.route('/iniciar-monitoreo')
 def iniciar_monitoreo():
     """Iniciar monitoreo en tiempo real"""
+    global monitoreo_iniciado
+    
     if not monitor.monitoreando:
         threading.Thread(target=monitor.iniciar_monitoreo, daemon=True).start()
+        monitoreo_iniciado = True
         return jsonify({
             "status": "monitoreo_iniciado",
             "mensaje": "Monitoreo en tiempo real ACTIVADO"
@@ -53,7 +59,9 @@ def estadisticas():
 def forzar_señal(par):
     """Forzar una señal manualmente (para testing)"""
     from estrategia_dca import EstrategiaDCA
-    from gestor_operaciones import GestorOperaciones
+    
+    if par not in ['USDCAD', 'USDJPY', 'AUDUSD', 'EURGBP', 'GBPUSD']:
+        return jsonify({"status": "error", "mensaje": "Par no válido"})
     
     estrategia = EstrategiaDCA()
     señal = estrategia.generar_señal_real(par)
@@ -65,14 +73,28 @@ def forzar_señal(par):
         "señal": señal
     })
 
-# Iniciar monitoreo automáticamente al deploy
-@app.before_first_request
-def iniciar_auto():
-    print("🔄 Iniciando monitoreo automático...")
-    threading.Thread(target=monitor.iniciar_monitoreo, daemon=True).start()
+@app.route('/status')
+def status():
+    """Estado del sistema"""
+    return jsonify({
+        "monitoreo_activo": monitor.monitoreando,
+        "operaciones_activas": len(monitor.gestor.operaciones_activas),
+        "total_operaciones": monitor.gestor.estadisticas['total_operaciones'],
+        "operaciones_ganadoras": monitor.gestor.estadisticas['operaciones_ganadoras'],
+        "profit_total": monitor.gestor.estadisticas['profit_total']
+    })
+
+# Iniciar monitoreo automáticamente al primer request
+@app.before_request
+def iniciar_monitoreo_auto():
+    global monitoreo_iniciado
+    if not monitoreo_iniciado:
+        print("🔄 Iniciando monitoreo automático...")
+        threading.Thread(target=monitor.iniciar_monitoreo, daemon=True).start()
+        monitoreo_iniciado = True
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     print(f"🌐 Servidor iniciado en puerto {port}")
-    print(f"🔍 Monitoreo en tiempo real: ACTIVADO")
+    print(f"🔍 Monitoreo en tiempo real: ACTIVADO AL PRIMER REQUEST")
     app.run(host="0.0.0.0", port=port, debug=False)
