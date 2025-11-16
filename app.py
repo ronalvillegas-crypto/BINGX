@@ -1,90 +1,78 @@
-#!/usr/bin/env python3
-# app.py - Servidor principal que une todos los módulos
+# app.py - Servidor con monitoreo en tiempo real
 import os
-import time
-import random
 import threading
 from flask import Flask, jsonify
-from config import TOP_5_PARES
-from estrategia_dca import EstrategiaDCA
-from gestor_operaciones import GestorOperaciones
-from telegram_bot import TelegramBotReal
+from monitor_mercado import monitor
 
 app = Flask(__name__)
 
-# Inicializar módulos
-estrategia = EstrategiaDCA()
-gestor = GestorOperaciones()
-telegram = TelegramBotReal()
-
-print("🚀 BOT TRADING REAL INICIADO - ARQUITECTURA MODULAR")
-
-def seguir_operacion(operacion_id):
-    """Seguir operación en tiempo real"""
-    for _ in range(10):  # 10 actualizaciones
-        time.sleep(5)  # Cada 5 segundos
-        
-        resultado = gestor.simular_seguimiento(operacion_id)
-        
-        if resultado and resultado['resultado']:
-            # Operación cerrada - enviar notificación
-            telegram.enviar_cierre_operacion(resultado['operacion'])
-            break
+print("🚀 BOT TRADING - MONITOREO EN TIEMPO REAL")
 
 @app.route('/')
 def home():
     return jsonify({
-        "status": "online",
-        "service": "Bot Trading Real - Arquitectura Modular",
+        "status": "online", 
+        "service": "Bot Trading - Detección en Tiempo Real",
         "modulos_activos": [
-            "Estrategia DCA", "Gestor Operaciones", "Telegram Bot"
+            "Monitor Mercado", "Estrategia DCA", "Gestor Operaciones", "Telegram Bot"
         ],
-        "estadisticas": gestor.estadisticas,
-        "operaciones_activas": len(gestor.operaciones_activas)
+        "estadisticas": monitor.gestor.estadisticas,
+        "operaciones_activas": len(monitor.gestor.operaciones_activas),
+        "monitoreo_activo": monitor.monitoreando
     })
 
-@app.route('/generar-operacion-real')
-def generar_operacion_real():
-    """Generar operación REAL con estrategia completa"""
-    try:
-        # 1. Seleccionar par
-        par = random.choice(TOP_5_PARES)
-        
-        # 2. Generar señal REAL
-        señal = estrategia.generar_señal_real(par)
-        
-        # 3. Abrir operación
-        operacion_id = gestor.abrir_operacion(señal)
-        
-        # 4. Enviar a Telegram
-        telegram.enviar_señal_completa(señal)
-        
-        # 5. Iniciar seguimiento en hilo separado
-        threading.Thread(
-            target=seguir_operacion,
-            args=(operacion_id,),
-            daemon=True
-        ).start()
-        
+@app.route('/iniciar-monitoreo')
+def iniciar_monitoreo():
+    """Iniciar monitoreo en tiempo real"""
+    if not monitor.monitoreando:
+        threading.Thread(target=monitor.iniciar_monitoreo, daemon=True).start()
         return jsonify({
-            "status": "operacion_creada",
-            "operacion_id": operacion_id,
-            "señal": señal,
-            "seguimiento": "ACTIVO"
+            "status": "monitoreo_iniciado",
+            "mensaje": "Monitoreo en tiempo real ACTIVADO"
         })
-        
-    except Exception as e:
-        return jsonify({"status": "error", "error": str(e)})
+    return jsonify({"status": "ya_activo", "mensaje": "Monitoreo ya está activo"})
 
-@app.route('/estadisticas-reales')
-def estadisticas_reales():
+@app.route('/detener-monitoreo')
+def detener_monitoreo():
+    """Detener monitoreo"""
+    monitor.detener_monitoreo()
     return jsonify({
-        "estadisticas": gestor.estadisticas,
-        "operaciones_activas": gestor.operaciones_activas,
-        "historial_reciente": gestor.historial[-5:] if gestor.historial else []
+        "status": "monitoreo_detenido", 
+        "mensaje": "Monitoreo DETENIDO"
     })
+
+@app.route('/estadisticas')
+def estadisticas():
+    return jsonify({
+        "estadisticas": monitor.gestor.estadisticas,
+        "operaciones_activas": monitor.gestor.operaciones_activas,
+        "historial_reciente": monitor.gestor.historial[-5:] if monitor.gestor.historial else []
+    })
+
+@app.route('/forzar-señal/<par>')
+def forzar_señal(par):
+    """Forzar una señal manualmente (para testing)"""
+    from estrategia_dca import EstrategiaDCA
+    from gestor_operaciones import GestorOperaciones
+    
+    estrategia = EstrategiaDCA()
+    señal = estrategia.generar_señal_real(par)
+    monitor.ejecutar_señal(señal)
+    
+    return jsonify({
+        "status": "señal_forzada",
+        "par": par,
+        "señal": señal
+    })
+
+# Iniciar monitoreo automáticamente al deploy
+@app.before_first_request
+def iniciar_auto():
+    print("🔄 Iniciando monitoreo automático...")
+    threading.Thread(target=monitor.iniciar_monitoreo, daemon=True).start()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
-    print(f"🌐 Servidor modular iniciado en puerto {port}")
+    print(f"🌐 Servidor iniciado en puerto {port}")
+    print(f"🔍 Monitoreo en tiempo real: ACTIVADO")
     app.run(host="0.0.0.0", port=port, debug=False)
