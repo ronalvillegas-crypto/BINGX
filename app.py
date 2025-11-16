@@ -1,48 +1,40 @@
 #!/usr/bin/env python3
-# app.py - Bot Trading Mejorado CORREGIDO para Render
+# app.py - Bot Trading Mejorado - Versión Estable
 import os
 import time
 import random
 import requests
-import logging
 from datetime import datetime
 from flask import Flask, jsonify
 
-# ===================== CONFIGURACIÓN =====================
 app = Flask(__name__)
+
+# Configuración
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+print("🚀 BOT TRADING - VERSIÓN ESTABLE INICIADA")
 
-print("🚀 BOT TRADING MEJORADO - VERSIÓN ESTABLE")
-
-# ===================== PARÁMETROS DE BACKTESTING =====================
-TOP_5_PARES_CONFIRMADOS = ['USDCAD', 'USDJPY', 'AUDUSD', 'EURGBP', 'GBPUSD']
-
-PARAMETROS_POR_PAR = {
-    'USDCAD': {'winrate': 85.0, 'rentabilidad': 536.5, 'leverage': 20},
-    'USDJPY': {'winrate': 75.0, 'rentabilidad': 390.1, 'leverage': 20},
-    'AUDUSD': {'winrate': 80.0, 'rentabilidad': 383.9, 'leverage': 20},
-    'EURGBP': {'winrate': 75.0, 'rentabilidad': 373.9, 'leverage': 20},
-    'GBPUSD': {'winrate': 75.0, 'rentabilidad': 324.4, 'leverage': 20}
+# Parámetros
+PARES = ['USDCAD', 'USDJPY', 'AUDUSD', 'EURGBP', 'GBPUSD']
+BACKTESTING = {
+    'USDCAD': {'winrate': 85.0, 'profit': 536.5},
+    'USDJPY': {'winrate': 75.0, 'profit': 390.1},
+    'AUDUSD': {'winrate': 80.0, 'profit': 383.9},
+    'EURGBP': {'winrate': 75.0, 'profit': 373.9},
+    'GBPUSD': {'winrate': 75.0, 'profit': 324.4}
 }
 
-# ===================== BOT TELEGRAM SIMPLE =====================
-class TelegramBotSimple:
+class TelegramBot:
     def __init__(self, token, chat_id):
         self.token = token
         self.chat_id = chat_id
-        self.base_url = f"https://api.telegram.org/bot{token}"
-        
-    def enviar_mensaje(self, mensaje):
-        """Enviar mensaje simple a Telegram"""
+    
+    def enviar(self, mensaje):
         try:
             if not self.token or not self.chat_id:
                 return False
-                
-            url = f"{self.base_url}/sendMessage"
+            url = f"https://api.telegram.org/bot{self.token}/sendMessage"
             payload = {
                 'chat_id': self.chat_id,
                 'text': mensaje,
@@ -50,91 +42,64 @@ class TelegramBotSimple:
             }
             response = requests.post(url, json=payload, timeout=10)
             return response.status_code == 200
-        except Exception as e:
-            logger.error(f"Error Telegram: {e}")
+        except:
             return False
 
-# ===================== SISTEMA TRADING =====================
-class SistemaTrading:
-    def __init__(self):
-        self.telegram_bot = TelegramBotSimple(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID)
-        self.estadisticas = {'señales_generadas': 0}
-    
-    def generar_señal(self):
-        """Generar señal simple"""
-        try:
-            par = random.choice(TOP_5_PARES_CONFIRMADOS)
-            params = PARAMETROS_POR_PAR[par]
-            
-            # Precio simulado
-            precios_base = {'USDCAD': 1.3450, 'USDJPY': 148.50, 'AUDUSD': 0.6520, 
-                           'EURGBP': 0.8570, 'GBPUSD': 1.2650}
-            precio = precios_base[par] * random.uniform(0.999, 1.001)
-            
-            señal = {
-                'par': par,
-                'direccion': random.choice(['COMPRA', 'VENTA']),
-                'precio': round(precio, 5),
-                'winrate': params['winrate'],
-                'rentabilidad': params['rentabilidad'],
-                'timestamp': datetime.now().strftime("%H:%M:%S")
-            }
-            
-            # Enviar a Telegram
-            if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
-                mensaje = f"""
-📈 <b>SEÑAL {señal['par']}</b>
-🎯 {señal['direccion']} a {señal['precio']}
-📊 WR: {señal['winrate']}% | Profit: {señal['rentabilidad']}%
-⏰ {señal['timestamp']}
-                """
-                self.telegram_bot.enviar_mensaje(mensaje.strip())
-            
-            self.estadisticas['señales_generadas'] += 1
-            logger.info(f"Señal generada: {señal}")
-            return señal
-            
-        except Exception as e:
-            logger.error(f"Error generando señal: {e}")
-            return None
+bot = TelegramBot(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID)
 
-# ===================== INICIALIZACIÓN =====================
-sistema = SistemaTrading()
-
-# ===================== RUTAS FLASK =====================
 @app.route('/')
 def home():
     return jsonify({
         "status": "online",
-        "service": "Bot Trading - Versión Estable",
-        "pares": TOP_5_PARES_CONFIRMADOS,
-        "estadisticas": sistema.estadisticas,
+        "service": "Bot Trading Estable",
+        "pares": PARES,
         "timestamp": datetime.now().isoformat()
     })
 
 @app.route('/generar-señal')
 def generar_señal():
-    señal = sistema.generar_señal()
-    if señal:
-        return jsonify({"status": "success", "señal": señal})
-    return jsonify({"status": "error"})
+    try:
+        par = random.choice(PARES)
+        datos = BACKTESTING[par]
+        direccion = random.choice(['COMPRA', 'VENTA'])
+        
+        mensaje = f"""
+📈 <b>SEÑAL {par}</b>
+🎯 {direccion}
+📊 WR: {datos['winrate']}% | Profit: {datos['profit']}%
+⏰ {datetime.now().strftime('%H:%M:%S')}
+        """
+        
+        # Enviar a Telegram
+        telegram_ok = bot.enviar(mensaje.strip())
+        
+        return jsonify({
+            "status": "success",
+            "señal": {
+                "par": par,
+                "direccion": direccion,
+                "winrate": datos['winrate'],
+                "profit": datos['profit'],
+                "telegram_enviado": telegram_ok
+            }
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "error": str(e)})
 
 @app.route('/test-telegram')
 def test_telegram():
-    if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
-        mensaje = f"✅ TEST TELEGRAM - {datetime.now().strftime('%H:%M:%S')}"
-        enviado = sistema.telegram_bot.enviar_mensaje(mensaje)
-        return jsonify({"status": "enviado" if enviado else "error"})
-    return jsonify({"status": "no_configurado"})
+    mensaje = f"✅ TEST - {datetime.now().strftime('%H:%M:%S')}"
+    enviado = bot.enviar(mensaje)
+    return jsonify({
+        "telegram_configurado": bool(TELEGRAM_TOKEN and TELEGRAM_CHAT_ID),
+        "mensaje_enviado": enviado
+    })
 
 @app.route('/health')
 def health():
-    return jsonify({"status": "healthy", "timestamp": datetime.now().isoformat()})
+    return jsonify({"status": "healthy"})
 
-# ===================== INICIO =====================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
-    print(f"🚀 Servidor iniciado en puerto {port}")
+    print(f"🌐 Servidor iniciado en puerto {port}")
     app.run(host="0.0.0.0", port=port, debug=False)
-else:
-    print("✅ Servicio Render iniciado correctamente")
