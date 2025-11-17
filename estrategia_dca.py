@@ -1,4 +1,4 @@
-# estrategia_dca.py - VERSIÓN MEJORADA
+# estrategia_dca.py - VERSIÓN MEJORADA CON GESTIÓN DE RIESGO
 import random
 from datetime import datetime
 from config import PARAMETROS_POR_PAR
@@ -10,7 +10,7 @@ class EstrategiaDCA:
         self.bingx = BingXMonitor()
     
     def generar_señal_real(self, par):
-        """Generar señal REAL con manejo robusto de fallos"""
+        """Generar señal REAL con gestión de riesgo mejorada"""
         try:
             params = PARAMETROS_POR_PAR.get(par, PARAMETROS_POR_PAR['USDCAD'])
             
@@ -23,21 +23,32 @@ class EstrategiaDCA:
                 rsi = datos_reales['rsi']
                 tendencia = datos_reales['tendencia']
                 fuente = datos_reales['fuente']
+                
+                # MEJORA: Análisis de tendencia más robusto
+                if rsi < 35 and tendencia == "ALCISTA":
+                    direccion = "COMPRA"
+                    confianza = "ALTA"
+                elif rsi > 65 and tendencia == "BAJISTA":
+                    direccion = "VENTA" 
+                    confianza = "ALTA"
+                else:
+                    # Estrategia original como fallback
+                    if tendencia == "ALCISTA":
+                        direccion = "COMPRA"
+                    elif tendencia == "BAJISTA":
+                        direccion = "VENTA"
+                    else:
+                        direccion = "COMPRA" if rsi < 50 else "VENTA"
+                    confianza = "MEDIA"
+                    
             else:
                 # Fallback a simulación inteligente
                 precio = self._precio_simulado_realista(par)
                 rsi = random.randint(30, 70)
                 tendencia = "ALCISTA" if rsi < 40 else "BAJISTA" if rsi > 60 else "LATERAL"
                 fuente = 'SIMULADO'
-            
-            # Dirección basada en análisis (no aleatoria)
-            if tendencia == "ALCISTA":
-                direccion = "COMPRA"
-            elif tendencia == "BAJISTA":
-                direccion = "VENTA"
-            else:
-                # En lateral, basarse en RSI
                 direccion = "COMPRA" if rsi < 50 else "VENTA"
+                confianza = "MEDIA"
             
             # Calcular niveles con parámetros optimizados
             if direccion == "COMPRA":
@@ -68,7 +79,8 @@ class EstrategiaDCA:
                 'rentabilidad_esperada': params['rentabilidad'],
                 'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 'fuente_datos': fuente,
-                'leverage': params['leverage']
+                'leverage': params['leverage'],
+                'confianza': confianza  # NUEVO: nivel de confianza
             }
             
         except Exception as e:
@@ -105,5 +117,6 @@ class EstrategiaDCA:
             'rentabilidad_esperada': params['rentabilidad'],
             'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             'fuente_datos': 'EMERGENCIA',
-            'leverage': params['leverage']
+            'leverage': params['leverage'],
+            'confianza': 'BAJA'
         }

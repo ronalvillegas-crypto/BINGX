@@ -53,4 +53,12 @@ PARAMETROS_POR_PAR = {
     }
 }
 
+# MANTENER PARES ORIGINALES
 TOP_5_PARES = ['USDCAD', 'USDJPY', 'AUDUSD', 'EURGBP', 'GBPUSD']
+
+# PARÁMETROS GESTIÓN DE RIESGO (NUEVO)
+RISK_MANAGEMENT = {
+    'max_drawdown': 0.70,  # Stop-loss global 70%
+    'consecutive_loss_limit': 10,  # Límite pérdidas consecutivas
+    'capital_inicial': 1000
+}

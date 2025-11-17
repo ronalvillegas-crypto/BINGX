@@ -1,4 +1,4 @@
-# telegram_bot.py - Comunicaciones REALES
+# telegram_bot.py - Comunicaciones REALES CON GESTIÓN DE RIESGO
 import requests
 import logging
 from config import TELEGRAM_TOKEN, TELEGRAM_CHAT_ID
@@ -31,9 +31,10 @@ class TelegramBotReal:
             logger.error(f"Error Telegram: {e}")
             return False
     
-    def enviar_señal_completa(self, señal):
+    def enviar_señal_completa(self, señal, mensaje_extra=""):
         """Enviar señal COMPLETA con todos los detalles"""
         emoji = "🟢" if señal['direccion'] == "COMPRA" else "🔴"
+        confianza_emoji = "🎯" if señal.get('confianza') == 'ALTA' else "⚡" if señal.get('confianza') == 'MEDIA' else "⚠️"
         
         mensaje = f"""
 {emoji} <b>SEÑAL DCA CONFIRMADA</b> {emoji}
@@ -41,31 +42,35 @@ class TelegramBotReal:
 🏆 <b>Par:</b> {señal['par']}
 🎯 <b>Dirección:</b> {señal['direccion']}
 💰 <b>Precio:</b> {señal['precio_actual']:.5f}
+{confianza_emoji} <b>Confianza:</b> {señal.get('confianza', 'ALTA')}
 
 📊 <b>Análisis:</b>
 • RSI: {señal['rsi']}
 • Tendencia: {señal['tendencia']}
-• Confianza: Alta
+• Fuente: {señal['fuente_datos']}
 
 ⚡ <b>Estrategia DCA:</b>
 • Entrada: {señal['precio_actual']:.5f}
-• DCA 1: {señal['dca_1']:.5f} (-0.4%)
-• DCA 2: {señal['dca_2']:.5f} (-0.8%)
-• TP1: {señal['tp1']:.5f} (+1.2%)
-• TP2: {señal['tp2']:.5f} (+2.0%)
-• SL: {señal['sl']:.5f} (-1.5%)
+• DCA 1: {señal['dca_1']:.5f}
+• DCA 2: {señal['dca_2']:.5f}
+• TP1: {señal['tp1']:.5f}
+• TP2: {señal['tp2']:.5f}
+• SL: {señal['sl']:.5f}
 
 🎯 <b>Backtesting:</b>
 • WR Esperado: {señal['winrate_esperado']}%
 • Profit Esperado: {señal['rentabilidad_esperada']}%
+• Leverage: {señal['leverage']}x
+
+{mensaje_extra}
 
 ⏰ <b>Hora:</b> {señal['timestamp']}
         """
         
         return self.enviar_mensaje(mensaje.strip())
     
-    def enviar_cierre_operacion(self, operacion):
-        """Enviar cierre REAL de operación"""
+    def enviar_cierre_operacion(self, operacion, consecutive_losses=0, capital_actual=1000):
+        """Enviar cierre REAL de operación con gestión de riesgo"""
         emoji = "🏆" if operacion['profit'] > 0 else "🛑"
         
         mensaje = f"""
@@ -80,6 +85,10 @@ class TelegramBotReal:
 • Cierre: {operacion['precio_cierre']:.5f}
 • DCA Usados: {operacion['niveles_dca_activados']}/2
 • Precio Promedio: {operacion['precio_promedio']:.5f}
+
+📉 <b>Estado Riesgo:</b>
+• Pérdidas Consecutivas: {consecutive_losses}
+• Capital Actual: ${capital_actual:.2f}
 
 ⏰ <b>Duración:</b> {operacion['timestamp_cierre'].strftime('%H:%M:%S')}
         """

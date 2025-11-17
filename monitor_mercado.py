@@ -1,8 +1,8 @@
-# monitor_mercado.py - Monitoreo en tiempo real (MEJORADO)
+# monitor_mercado.py - Monitoreo en tiempo real CON GESTIÓN DE RIESGO
 import time
 import threading
 from datetime import datetime, timedelta
-from config import TOP_5_PARES
+from config import TOP_5_PARES, RISK_MANAGEMENT
 from bingx_api import BingXMonitor
 from estrategia_dca import EstrategiaDCA
 from gestor_operaciones import GestorOperaciones
@@ -17,9 +17,53 @@ class MonitorMercado:
         self.monitoreando = False
         self.ultima_señal_por_par = {}
         
+        # GESTIÓN DE RIESGO MEJORADA
+        self.max_drawdown = RISK_MANAGEMENT['max_drawdown']
+        self.consecutive_loss_limit = RISK_MANAGEMENT['consecutive_loss_limit']
+        self.capital_inicial = RISK_MANAGEMENT['capital_inicial']
+        self.capital_actual = self.capital_inicial
+        self.consecutive_losses = 0
+        self.total_operaciones = 0
+        self.operaciones_ganadoras = 0
+        
+    def verificar_riesgo_global(self):
+        """Verificar condiciones de riesgo global"""
+        if self.capital_actual < self.capital_inicial * (1 - self.max_drawdown):
+            mensaje = f"⛔ STOP-LOSS GLOBAL ACTIVADO\nCapital actual: ${self.capital_actual:.2f} (Límite: ${self.capital_inicial * (1 - self.max_drawdown):.2f})"
+            self.telegram.enviar_mensaje(mensaje)
+            print(f"⛔ STOP-LOSS GLOBAL: Capital ${self.capital_actual:.2f}")
+            return False
+            
+        if self.consecutive_losses >= self.consecutive_loss_limit:
+            mensaje = f"⏸️ PAUSA POR PÉRDIDAS CONSECUTIVAS\n{self.consecutive_losses} pérdidas seguidas (Límite: {self.consecutive_loss_limit})"
+            self.telegram.enviar_mensaje(mensaje)
+            print(f"⏸️ PAUSA: {self.consecutive_losses} pérdidas consecutivas")
+            return False
+            
+        return True
+    
+    def actualizar_estado_riesgo(self, profit):
+        """Actualizar estado de riesgo después de cada operación"""
+        self.capital_actual += profit
+        self.total_operaciones += 1
+        
+        if profit > 0:
+            self.operaciones_ganadoras += 1
+            self.consecutive_losses = 0  # Resetear contador
+        else:
+            self.consecutive_losses += 1
+        
+        # Calcular estadísticas
+        win_rate = (self.operaciones_ganadoras / self.total_operaciones * 100) if self.total_operaciones > 0 else 0
+        print(f"📊 Estadísticas: Ops: {self.total_operaciones}, Win Rate: {win_rate:.1f}%, Capital: ${self.capital_actual:.2f}, Pérdidas consecutivas: {self.consecutive_losses}")
+    
     def analizar_par(self, par):
         """Analizar un par en busca de oportunidades REALES"""
         try:
+            # Verificar riesgo global antes de analizar
+            if not self.verificar_riesgo_global():
+                return None
+            
             # Obtener datos en tiempo real
             datos_reales = self.bingx.obtener_datos_tecnicos(par)
             
@@ -29,21 +73,19 @@ class MonitorMercado:
             
             print(f"🔍 Analizando {par}: RSI={datos_reales['rsi']}, Tendencia={datos_reales['tendencia']}")
             
-            # CONDICIONES PARA SEÑAL REAL (personaliza según tu estrategia)
-            condiciones_compra = (
+            # CONDICIONES MEJORADAS PARA SEÑAL
+            condiciones_compra_alta = (
                 datos_reales['rsi'] < 35 and      # Sobrevendido
-                datos_reales['tendencia'] == 'ALCISTA' and  # Tendencia alcista
-                datos_reales['volatilidad'] > 0.3  # Suficiente movimiento
+                datos_reales['tendencia'] == 'ALCISTA'  # Tendencia alcista
             )
             
-            condiciones_venta = (
+            condiciones_venta_alta = (
                 datos_reales['rsi'] > 65 and      # Sobrecomprado  
-                datos_reales['tendencia'] == 'BAJISTA' and  # Tendencia bajista
-                datos_reales['volatilidad'] > 0.3  # Suficiente movimiento
+                datos_reales['tendencia'] == 'BAJISTA'  # Tendencia bajista
             )
             
-            # Verificar si hay oportunidad
-            if condiciones_compra or condiciones_venta:
+            # Verificar si hay oportunidad de alta confianza
+            if condiciones_compra_alta or condiciones_venta_alta:
                 # Evitar señales repetidas (mínimo 2 horas entre señales del mismo par)
                 ultima_señal = self.ultima_señal_por_par.get(par)
                 if ultima_señal and (datetime.now() - ultima_señal).seconds < 7200:
@@ -54,7 +96,7 @@ class MonitorMercado:
                 señal = self.estrategia.generar_señal_real(par)
                 self.ultima_señal_por_par[par] = datetime.now()
                 
-                print(f"🎯 OPORTUNIDAD DETECTADA en {par}!")
+                print(f"🎯 OPORTUNIDAD DETECTADA en {par}! Confianza: {señal.get('confianza', 'ALTA')}")
                 return señal
                 
             return None
@@ -66,11 +108,17 @@ class MonitorMercado:
     def ejecutar_señal(self, señal):
         """Ejecutar una señal detectada"""
         try:
+            # Verificar riesgo una última vez antes de ejecutar
+            if not self.verificar_riesgo_global():
+                print("⛔ Operación cancelada por gestión de riesgo")
+                return
+            
             # Abrir operación
             operacion_id = self.gestor.abrir_operacion(señal)
             
-            # Enviar a Telegram
-            self.telegram.enviar_señal_completa(señal)
+            # Enviar a Telegram con info de riesgo
+            mensaje_extra = f"\n📊 <b>Estado Riesgo:</b>\n• Capital: ${self.capital_actual:.2f}\n• Pérdidas consecutivas: {self.consecutive_losses}"
+            self.telegram.enviar_señal_completa(señal, mensaje_extra)
             
             # Iniciar seguimiento automático
             self.iniciar_seguimiento(operacion_id)
@@ -93,9 +141,13 @@ class MonitorMercado:
                     resultado = self.gestor.simular_seguimiento(operacion_id)
                     
                     if resultado and resultado['resultado']:
-                        # Operación CERRADA - enviar notificación
-                        self.telegram.enviar_cierre_operacion(resultado['operacion'])
-                        print(f"📊 OPERACIÓN CERRADA: {operacion_id} - {resultado['resultado']}")
+                        # Operación CERRADA - actualizar gestión de riesgo
+                        profit = resultado['operacion']['profit']
+                        self.actualizar_estado_riesgo(profit)
+                        
+                        # Enviar notificación con info de riesgo
+                        self.telegram.enviar_cierre_operacion(resultado['operacion'], self.consecutive_losses, self.capital_actual)
+                        print(f"📊 OPERACIÓN CERRADA: {operacion_id} - {resultado['resultado']} - Profit: {profit:.2f}")
                         break
                 except Exception as e:
                     print(f"❌ Error en seguimiento {operacion_id}: {e}")
@@ -107,17 +159,47 @@ class MonitorMercado:
         
         threading.Thread(target=seguir, daemon=True).start()
     
+    def reiniciar_riesgo(self):
+        """Reiniciar contadores de riesgo (para testing)"""
+        self.consecutive_losses = 0
+        self.capital_actual = self.capital_inicial
+        self.total_operaciones = 0
+        self.operaciones_ganadoras = 0
+        print("🔄 Contadores de riesgo reiniciados")
+    
+    def obtener_estadisticas_riesgo(self):
+        """Obtener estadísticas actuales de riesgo"""
+        win_rate = (self.operaciones_ganadoras / self.total_operaciones * 100) if self.total_operaciones > 0 else 0
+        return {
+            'capital_actual': self.capital_actual,
+            'capital_inicial': self.capital_inicial,
+            'drawdown_actual': ((self.capital_inicial - self.capital_actual) / self.capital_inicial * 100),
+            'total_operaciones': self.total_operaciones,
+            'operaciones_ganadoras': self.operaciones_ganadoras,
+            'win_rate': win_rate,
+            'perdidas_consecutivas': self.consecutive_losses,
+            'limite_perdidas_consecutivas': self.consecutive_loss_limit,
+            'limite_drawdown': self.max_drawdown * 100
+        }
+    
     def iniciar_monitoreo(self):
         """Iniciar monitoreo continuo"""
         self.monitoreando = True
         print("🔍 INICIANDO MONITOREO EN TIEMPO REAL...")
         print(f"📊 Pares monitoreados: {TOP_5_PARES}")
+        print(f"💰 Capital inicial: ${self.capital_inicial}")
+        print(f"⛔ Stop-loss global: {self.max_drawdown*100}% (${self.capital_inicial * (1 - self.max_drawdown):.2f})")
+        print(f"📉 Máx pérdidas consecutivas: {self.consecutive_loss_limit}")
+        
+        # Enviar mensaje de inicio a Telegram
+        mensaje_inicio = f"🤖 <b>BOT INICIADO</b>\n\n📊 <b>Configuración:</b>\n• Pares: {', '.join(TOP_5_PARES)}\n• Capital: ${self.capital_inicial}\n• Stop-loss: {self.max_drawdown*100}%\n• Máx pérdidas: {self.consecutive_loss_limit}"
+        self.telegram.enviar_mensaje(mensaje_inicio)
         
         ciclo = 0
         while self.monitoreando:
             try:
                 ciclo += 1
-                print(f"🔄 Ciclo de monitoreo #{ciclo} - {datetime.now().strftime('%H:%M:%S')}")
+                print(f"🔄 Ciclo de monitoreo #{ciclo} - {datetime.now().strftime('%H:%M:%S')} - Capital: ${self.capital_actual:.2f}")
                 
                 señales_generadas = 0
                 for par in TOP_5_PARES:
@@ -150,6 +232,12 @@ class MonitorMercado:
     def detener_monitoreo(self):
         """Detener monitoreo"""
         self.monitoreando = False
+        
+        # Enviar mensaje de resumen
+        stats = self.obtener_estadisticas_riesgo()
+        mensaje_resumen = f"🛑 <b>BOT DETENIDO</b>\n\n📊 <b>Resumen:</b>\n• Capital final: ${stats['capital_actual']:.2f}\n• Operaciones: {stats['total_operaciones']}\n• Win Rate: {stats['win_rate']:.1f}%\n• Drawdown: {stats['drawdown_actual']:.1f}%"
+        self.telegram.enviar_mensaje(mensaje_resumen)
+        
         print("🛑 MONITOREO DETENIDO")
 
 # Instancia global
