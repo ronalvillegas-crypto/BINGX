@@ -1,4 +1,4 @@
-# config.py - CON TODOS LOS PARES ACTIVOS
+# config.py - CON COMPATIBILIDAD
 import os
 
 # Configuración Telegram
@@ -45,7 +45,7 @@ PARAMETROS_POR_PAR = {
         'tipo': 'forex'
     },
     
-    # MATERIAS PRIMAS (NUEVAS - AGREGAR ESTOS)
+    # MATERIAS PRIMAS (NUEVAS)
     'XAUUSD': {
         'winrate': 58.0,
         'rentabilidad': 145.0,
@@ -84,13 +84,16 @@ PARAMETROS_POR_PAR = {
     }
 }
 
-# ✅ TODOS LOS PARES ACTIVOS (FOREX + MATERIAS PRIMAS) - ESTO ES LO MÁS IMPORTANTE
+# ✅ TODOS LOS PARES ACTIVOS (FOREX + MATERIAS PRIMAS)
 TOP_PARES = [
     # FOREX (original)
     'EURUSD', 'USDCAD', 'EURCHF', 'EURAUD',
-    # MATERIAS PRIMAS (nuevas) - AGREGAR ESTA LÍNEA
+    # MATERIAS PRIMAS (nuevas)
     'XAUUSD', 'XAGUSD', 'OILUSD', 'XPTUSD'
 ]
+
+# 🎯 MANTENER COMPATIBILIDAD - AGREGAR ESTA LÍNEA
+TOP_5_PARES = TOP_PARES  # Para que otros archivos no fallen
 
 # 🎯 GESTIÓN DE RIESGO OPTIMIZADA
 RISK_MANAGEMENT = {
