@@ -45,7 +45,6 @@ class YahooFinanceAPI:
             
             if response.status_code == 200:
                 data = response.json()
-                print(f"📦 Respuesta Yahoo para {simbolo}: {data}")  # DEBUG
                 
                 if "chart" in data and "result" in data["chart"] and data["chart"]["result"]:
                     result = data["chart"]["result"][0]
