@@ -1,7 +1,8 @@
-# gestor_operaciones.py - Gestión REAL de operaciones
+# gestor_operaciones.py - GESTIÓN REAL DE OPERACIONES CON SIMULACIÓN AVANZADA
 import time
 import random
 from datetime import datetime
+from simulador_avanzado import SimuladorAvanzado
 
 class GestorOperaciones:
     def __init__(self):
@@ -13,6 +14,7 @@ class GestorOperaciones:
             'operaciones_perdedoras': 0,
             'profit_total': 0.0
         }
+        self.simulador = SimuladorAvanzado()  # NUEVO: Simulador avanzado
     
     def abrir_operacion(self, señal):
         """Abrir operación REAL con seguimiento"""
@@ -37,7 +39,8 @@ class GestorOperaciones:
             'resultado': None,
             'profit': 0.0,
             'niveles_dca_activados': 0,
-            'precio_promedio': señal['precio_actual']
+            'precio_promedio': señal['precio_actual'],
+            'leverage': señal.get('leverage', 1)  # NUEVO: Guardar leverage
         }
         
         self.operaciones_activas[operacion_id] = operacion
@@ -46,73 +49,34 @@ class GestorOperaciones:
         return operacion_id
     
     def simular_seguimiento(self, operacion_id):
-        """Simular seguimiento REAL con DCA"""
+        """Seguimiento MÁS REALISTA con simulador avanzado"""
         if operacion_id not in self.operaciones_activas:
             return None
         
         operacion = self.operaciones_activas[operacion_id]
         
-        # Simular movimiento de precio REAL
-        volatilidad = random.uniform(-0.01, 0.01)  # 1% de volatilidad
-        nuevo_precio = operacion['precio_actual'] * (1 + volatilidad)
-        operacion['precio_actual'] = nuevo_precio
+        # Verificar DCA primero
+        self._verificar_dca(operacion)
         
-        # Verificar DCA
-        for nivel in operacion['dca_niveles']:
-            if not nivel['activado']:
-                if operacion['direccion'] == 'COMPRA':
-                    if nuevo_precio <= nivel['precio']:
-                        nivel['activado'] = True
-                        operacion['niveles_dca_activados'] += 1
-                        # Recalcular precio promedio
-                        precios = [operacion['precio_entrada']]
-                        for n in operacion['dca_niveles']:
-                            if n['activado']:
-                                precios.append(n['precio'])
-                        operacion['precio_promedio'] = sum(precios) / len(precios)
-        
-        # Verificar TP/SL
-        if operacion['direccion'] == 'COMPRA':
-            if nuevo_precio >= operacion['tp2']:
-                resultado = 'TP2'
-            elif nuevo_precio >= operacion['tp1']:
-                resultado = 'TP1'
-            elif nuevo_precio <= operacion['sl']:
-                resultado = 'SL'
-            else:
-                resultado = None
-        else:
-            if nuevo_precio <= operacion['tp2']:
-                resultado = 'TP2'
-            elif nuevo_precio <= operacion['tp1']:
-                resultado = 'TP1'
-            elif nuevo_precio >= operacion['sl']:
-                resultado = 'SL'
-            else:
-                resultado = None
+        # Usar simulador avanzado en lugar de movimiento aleatorio simple
+        resultado = self.simulador.simular_operacion_realista(operacion)
         
         if resultado:
-            # Calcular profit REAL con leverage CORREGIDO
-            if operacion['direccion'] == 'COMPRA':
-                profit_pct = ((nuevo_precio - operacion['precio_promedio']) / operacion['precio_promedio']) * 100
-            else:
-                profit_pct = ((operacion['precio_promedio'] - nuevo_precio) / operacion['precio_promedio']) * 100
-            
-            # CORRECCIÓN: Usar leverage de 20x correctamente
-            profit_final = profit_pct * 20  # Leverage 20x
+            # Calcular profit REALISTA
+            profit = resultado.get('profit', self._calcular_profit_realista(operacion, resultado['precio_cierre']))
             
             operacion['estado'] = 'CERRADA'
             operacion['timestamp_cierre'] = datetime.now()
-            operacion['resultado'] = resultado
-            operacion['profit'] = round(profit_final, 2)
-            operacion['precio_cierre'] = nuevo_precio
+            operacion['resultado'] = resultado['resultado']
+            operacion['profit'] = profit
+            operacion['precio_cierre'] = resultado['precio_cierre']
             
             # Actualizar estadísticas
-            if profit_final > 0:
+            if profit > 0:
                 self.estadisticas['operaciones_ganadoras'] += 1
             else:
                 self.estadisticas['operaciones_perdedoras'] += 1
-            self.estadisticas['profit_total'] += profit_final
+            self.estadisticas['profit_total'] += profit
             
             # Mover a historial
             self.historial.append(operacion)
@@ -120,8 +84,47 @@ class GestorOperaciones:
             
             return {
                 'operacion': operacion,
-                'resultado': resultado,
-                'profit': profit_final
+                'resultado': resultado['resultado'],
+                'profit': profit
             }
         
         return {'operacion': operacion, 'resultado': None}
+    
+    def _verificar_dca(self, operacion):
+        """Verificar y activar niveles DCA"""
+        precio_actual = operacion['precio_actual']
+        
+        for nivel in operacion['dca_niveles']:
+            if not nivel['activado']:
+                if operacion['direccion'] == 'COMPRA':
+                    if precio_actual <= nivel['precio']:
+                        nivel['activado'] = True
+                        operacion['niveles_dca_activados'] += 1
+                        # Recalcular precio promedio
+                        self._recalcular_precio_promedio(operacion)
+                else:  # VENTA
+                    if precio_actual >= nivel['precio']:
+                        nivel['activado'] = True
+                        operacion['niveles_dca_activados'] += 1
+                        # Recalcular precio promedio
+                        self._recalcular_precio_promedio(operacion)
+    
+    def _recalcular_precio_promedio(self, operacion):
+        """Recalcular precio promedio después de DCA"""
+        precios = [operacion['precio_entrada']]
+        for nivel in operacion['dca_niveles']:
+            if nivel['activado']:
+                precios.append(nivel['precio'])
+        
+        operacion['precio_promedio'] = sum(precios) / len(precios)
+    
+    def _calcular_profit_realista(self, operacion, precio_cierre):
+        """Calcular profit de forma REALISTA con leverage"""
+        if operacion['direccion'] == "COMPRA":
+            profit_pct = ((precio_cierre - operacion['precio_promedio']) / operacion['precio_promedio']) * 100
+        else:
+            profit_pct = ((operacion['precio_promedio'] - precio_cierre) / operacion['precio_promedio']) * 100
+        
+        # Aplicar leverage
+        profit_final = profit_pct * operacion.get('leverage', 1)
+        return round(profit_final, 2)

@@ -1,4 +1,4 @@
-# yahoo_api.py - API REAL para Forex que SÍ funciona
+# yahoo_api.py - API REAL para Forex y Materias Primas
 import requests
 import random
 import logging
@@ -13,16 +13,23 @@ class YahooFinanceAPI:
     def obtener_precio_real(self, simbolo):
         """Obtener precio REAL de Yahoo Finance"""
         try:
-            # Mapeo de símbolos para Yahoo Finance
+            # Mapeo de símbolos para Yahoo Finance (ACTUALIZADO CON MATERIAS PRIMAS)
             symbol_mapping = {
+                # FOREX
                 "EURUSD": "EURUSD=X",
-                "USDCAD": "CAD=X",  # USD/CAD en Yahoo
+                "USDCAD": "CAD=X",
                 "EURCHF": "EURCHF=X", 
                 "EURAUD": "EURAUD=X",
-                "USDJPY": "JPY=X",   # USD/JPY
+                "USDJPY": "JPY=X",
                 "AUDUSD": "AUDUSD=X",
                 "EURGBP": "EURGBP=X",
-                "GBPUSD": "GBPUSD=X"
+                "GBPUSD": "GBPUSD=X",
+                
+                # MATERIAS PRIMAS (NUEVAS)
+                "XAUUSD": "GC=F",    # Oro
+                "XAGUSD": "SI=F",    # Plata
+                "OILUSD": "CL=F",    # Petróleo Crudo
+                "XPTUSD": "PL=F",    # Platino
             }
             
             yahoo_symbol = symbol_mapping.get(simbolo)
@@ -70,6 +77,7 @@ class YahooFinanceAPI:
     def _precio_simulado_realista(self, simbolo):
         """Precio simulado realista como fallback"""
         precios_base = {
+            # FOREX
             "EURUSD": 1.0850,
             "USDCAD": 1.3450,
             "EURCHF": 0.9550,
@@ -77,11 +85,25 @@ class YahooFinanceAPI:
             "USDJPY": 148.50,
             "AUDUSD": 0.6520,
             "EURGBP": 0.8550,
-            "GBPUSD": 1.2650
+            "GBPUSD": 1.2650,
+            
+            # MATERIAS PRIMAS (NUEVAS)
+            "XAUUSD": 2185.50,   # Oro
+            "XAGUSD": 24.85,     # Plata
+            "OILUSD": 78.30,     # Petróleo
+            "XPTUSD": 925.80,    # Platino
         }
         
         precio_base = precios_base.get(simbolo, 1.0000)
-        volatilidad = random.uniform(-0.001, 0.001)
+        
+        # Diferente volatilidad según el tipo de activo
+        if simbolo in ["XAUUSD", "XAGUSD", "XPTUSD"]:  # Metales
+            volatilidad = random.uniform(-0.005, 0.005)  # Metales: ±0.5%
+        elif simbolo in ["OILUSD"]:  # Energía
+            volatilidad = random.uniform(-0.008, 0.008)  # Energía: ±0.8%
+        else:
+            volatilidad = random.uniform(-0.001, 0.001)  # Forex: ±0.1%
+            
         nuevo_precio = precio_base * (1 + volatilidad)
         
         print(f"🔄 Precio simulado {simbolo}: {nuevo_precio:.5f}")
@@ -96,15 +118,20 @@ class YahooFinanceAPI:
             if not precio_actual:
                 return None
             
-            # Simular RSI y tendencia
-            precio_base = {
-                "EURUSD": 1.0850, "USDCAD": 1.3450, "EURCHF": 0.9550, "EURAUD": 1.6350
-            }.get(simbolo, 1.0000)
+            # Base de precios para cálculo de RSI simulado (ACTUALIZADA)
+            precios_base = {
+                "EURUSD": 1.0850, "USDCAD": 1.3450, "EURCHF": 0.9550, "EURAUD": 1.6350,
+                "XAUUSD": 2185.50, "XAGUSD": 24.85, "OILUSD": 78.30, "XPTUSD": 925.80
+            }
             
+            precio_base = precios_base.get(simbolo, 1.0000)
+            
+            # Calcular RSI simulado basado en desviación del precio base
             desviacion = (precio_actual - precio_base) / precio_base
             rsi = 50 + (desviacion * 1000)
             rsi = max(20, min(80, rsi))
             
+            # Determinar tendencia basada en RSI
             if rsi < 40:
                 tendencia = "ALCISTA"
             elif rsi > 60:
@@ -145,7 +172,7 @@ class YahooFinanceAPI:
 
 # Prueba rápida
 if __name__ == "__main__":
-    print("🚀 TEST YAHOO FINANCE API")
+    print("🚀 TEST YAHOO FINANCE API - FOREX Y MATERIAS PRIMAS")
     yahoo = YahooFinanceAPI()
     
     # Probar conexión
@@ -154,9 +181,18 @@ if __name__ == "__main__":
     else:
         print("❌ Yahoo Finance no está disponible")
     
-    # Probar pares
-    pares = ["EURUSD", "USDCAD", "EURCHF", "EURAUD"]
-    for par in pares:
+    # Probar TODOS los pares (Forex + Materias Primas)
+    pares_forex = ["EURUSD", "USDCAD", "EURCHF", "EURAUD"]
+    pares_commodities = ["XAUUSD", "XAGUSD", "OILUSD", "XPTUSD"]
+    
+    print("\n📊 PROBANDO FOREX:")
+    for par in pares_forex:
+        print(f"\n🔍 Probando {par}:")
+        precio = yahoo.obtener_precio_real(par)
+        print(f"   💰 Precio: {precio}")
+    
+    print("\n🪙 PROBANDO MATERIAS PRIMAS:")
+    for par in pares_commodities:
         print(f"\n🔍 Probando {par}:")
         precio = yahoo.obtener_precio_real(par)
         print(f"   💰 Precio: {precio}")

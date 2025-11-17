@@ -1,26 +1,28 @@
-# estrategia_dca.py - ESTRATEGIA S/R ETAPA 1 REAL
+# estrategia_dca.py - ESTRATEGIA S/R REAL CON INDICADORES REALES
 import random
 from datetime import datetime
 from config import PARAMETROS_POR_PAR
 from yahoo_api import YahooFinanceAPI
 from analisis_tecnico import AnalisisTechnicoSR
+from indicadores_reales import IndicadoresReales  # NUEVO
 
 class EstrategiaDCA:
     def __init__(self):
         self.operaciones_activas = {}
         self.yahoo = YahooFinanceAPI()
         self.analisis_sr = AnalisisTechnicoSR()
+        self.indicadores_reales = IndicadoresReales()  # NUEVO
     
     def generar_señal_real(self, par):
-        """Generar señal REAL con estrategia S/R del backtesting"""
+        """Generar señal REAL con indicadores REALES"""
         try:
             params = PARAMETROS_POR_PAR.get(par, PARAMETROS_POR_PAR['EURUSD'])
             
-            # Obtener datos REALES de Yahoo Finance
-            datos_reales = self.yahoo.obtener_datos_tecnicos(par)
+            # Obtener datos TÉCNICOS REALES (NUEVO)
+            datos_reales = self.obtener_datos_tecnicos_reales(par)
             
             if not datos_reales:
-                print(f"❌ No se pudieron obtener datos para {par}")
+                print(f"❌ No se pudieron obtener datos técnicos reales para {par}")
                 return None
             
             precio = datos_reales['precio_actual']
@@ -28,7 +30,7 @@ class EstrategiaDCA:
             tendencia = datos_reales['tendencia']
             fuente = datos_reales['fuente']
             
-            print(f"🔍 Analizando {par} - Precio: {precio:.5f}, RSI: {rsi}, Tendencia: {tendencia}")
+            print(f"🔍 Analizando {par} - Precio: {precio:.5f}, RSI: {rsi}, Tendencia: {tendencia}, Fuente: {fuente}")
             
             # 🎯 ANÁLISIS S/R REAL (ESTRATEGIA BACKTESTING)
             analisis_sr = self.analisis_sr.analizar_estructura_mercado(
@@ -97,15 +99,22 @@ class EstrategiaDCA:
             }
             
         except Exception as e:
-            print(f"❌ Error en generar_señal_real S/R: {e}")
+            print(f"❌ Error en generar_señal_real: {e}")
             return None
     
-    def _precio_simulado_realista(self, par):
-        """Precio simulado realista para fallback"""
-        precios_base = {
-            'EURUSD': 1.0850, 'USDCAD': 1.3450, 'EURCHF': 0.9550,
-            'EURAUD': 1.6350, 'USDJPY': 148.50, 'AUDUSD': 0.6520,
-            'EURGBP': 0.8550, 'GBPUSD': 1.2650
-        }
-        precio_base = precios_base.get(par, 1.0000)
-        return precio_base * random.uniform(0.998, 1.002)
+    def obtener_datos_tecnicos_reales(self, par):
+        """Obtener datos técnicos REALES usando IndicadoresReales"""
+        try:
+            # Usar el nuevo módulo de indicadores reales
+            datos = self.indicadores_reales.obtener_indicadores_reales(par)
+            
+            if datos and datos['precio_actual']:
+                return datos
+            else:
+                # Fallback al método anterior si el nuevo falla
+                return self.yahoo.obtener_datos_tecnicos(par)
+                
+        except Exception as e:
+            print(f"❌ Error obteniendo datos técnicos reales: {e}")
+            # Fallback al método anterior
+            return self.yahoo.obtener_datos_tecnicos(par)
