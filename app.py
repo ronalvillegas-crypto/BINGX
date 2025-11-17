@@ -1,10 +1,11 @@
-# app.py - BOT TRADING 24/7 - VERSIÓN SIMPLIFICADA
+# app.py - CON TODOS LOS ACTIVOS
 import os
 import time
+import threading
 from flask import Flask, jsonify
 
-print("🚀 INICIANDO BOT TRADING 24/7 - ESTRATEGIA S/R ETAPA 1")
-print("🎯 MODO: FUNCIONAMIENTO CONTINUO - BUCLE INFINITO INTENCIONAL")
+print("🚀 INICIANDO BOT TRADING 24/7 - FOREX + MATERIAS PRIMAS")
+print("🎯 ESTRATEGIA: S/R ETAPA 1 - 8 ACTIVOS")
 
 # Inicializar e iniciar MONITOR inmediatamente
 try:
@@ -13,7 +14,6 @@ try:
     print("✅ Monitor inicializado correctamente")
     
     # Iniciar monitoreo en segundo plano
-    import threading
     def iniciar_bot():
         monitor.iniciar_monitoreo()
     
@@ -36,51 +36,78 @@ def home():
     
     return jsonify({
         "status": estado,
-        "message": "🤖 BOT DE TRADING FUNCIONANDO 24/7",
-        "service": "Bot Trading Forex - Estrategia S/R Backtesting", 
-        "modo_operacion": "BUCLE INFINITO INTENCIONAL - NO DETENER",
-        "pares_activos": ["EURUSD", "USDCAD", "EURCHF", "EURAUD"],
+        "message": "🤖 BOT DE TRADING MULTI-ACTIVOS 24/7",
+        "service": "Bot Trading - Forex + Materias Primas", 
         "estrategia": "S/R Etapa 1 - Backtesting Optimizado",
+        "activos_monitoreados": {
+            "forex": ["EURUSD", "USDCAD", "EURCHF", "EURAUD"],
+            "materias_primas": ["XAUUSD (Oro)", "XAGUSD (Plata)", "OILUSD (Petróleo)", "XPTUSD (Platino)"]
+        },
+        "total_activos": 8,
         "monitoreo_activo": monitor.monitoreando if monitor else False,
         "operaciones_activas": len(monitor.gestor.operaciones_activas) if monitor else 0,
-        "nota_importante": "ESTE BOT ESTÁ DISEÑADO PARA EJECUTARSE CONTINUAMENTE"
+        "nota": "BUCLE INFINITO INTENCIONAL - DISEÑADO PARA 24/7"
     })
 
 @app.route('/status')
 def status():
     return jsonify({
-        "status": "OPERACIONAL",
+        "status": "OPERACIONAL_MULTI_ACTIVOS",
         "bot_activo": monitor.monitoreando if monitor else False,
-        "estrategia": "S/R Etapa 1 - Backtesting Completado",
-        "pares_monitoreados": ["EURUSD", "USDCAD", "EURCHF", "EURAUD"],
-        "diseno": "BOT_24_7_CON_BUCLE_INFINITO"
+        "estrategia": "S/R Etapa 1 - Forex & Commodities",
+        "total_pares": 8,
+        "categorias": ["Forex (4)", "Materias Primas (4)"]
     })
 
-@app.route('/health')
-def health():
+@app.route('/activos')
+def activos():
     return jsonify({
-        "status": "HEALTHY", 
-        "timestamp": time.time(),
-        "service": "forex_trading_bot",
-        "operational_mode": "CONTINUOUS_TRADING_24_7"
-    })
-
-@app.route('/backtesting')
-def backtesting():
-    return jsonify({
-        "estrategia": "S/R Etapa 1",
-        "backtesting_completado": True,
-        "resultados_optimizados": {
-            "win_rate": "55-64%",
-            "profit_factor": "1.45", 
-            "retorno_esperado": "104-210%",
-            "pares_rentables": "EURUSD, USDCAD, EURCHF, EURAUD"
+        "forex": {
+            "EURUSD": "Euro/Dólar",
+            "USDCAD": "Dólar/Dólar Canadiense", 
+            "EURCHF": "Euro/Franco Suizo",
+            "EURAUD": "Euro/Dólar Australiano"
+        },
+        "materias_primas": {
+            "XAUUSD": "Oro",
+            "XAGUSD": "Plata",
+            "OILUSD": "Petróleo Crudo",
+            "XPTUSD": "Platino"
         }
     })
+
+@app.route('/forzar-señal/<par>')
+def forzar_señal(par):
+    """Forzar una señal manualmente (para testing)"""
+    if monitor is None:
+        return jsonify({"status": "error", "message": "Monitor no disponible"})
+    
+    # PERMITIR TODOS LOS PARES (Forex + Commodities)
+    pares_permitidos = ['EURUSD', 'USDCAD', 'EURCHF', 'EURAUD', 'XAUUSD', 'XAGUSD', 'OILUSD', 'XPTUSD']
+    
+    if par not in pares_permitidos:
+        return jsonify({"status": "error", "mensaje": f"Par no válido. Pares permitidos: {pares_permitidos}"})
+    
+    from estrategia_dca import EstrategiaDCA
+    estrategia = EstrategiaDCA()
+    señal = estrategia.generar_señal_real(par)
+    
+    if señal:
+        monitor.ejecutar_señal(señal)
+        return jsonify({
+            "status": "señal_forzada",
+            "par": par,
+            "señal": señal
+        })
+    else:
+        return jsonify({
+            "status": "no_señal",
+            "mensaje": "No se pudo generar señal - condiciones no óptimas"
+        })
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     print(f"🌐 Servidor web iniciado en puerto {port}")
-    print(f"📊 Bot trading funcionando en segundo plano")
-    print(f"💡 EL BUCLE INFINITO ES COMPORTAMIENTO NORMAL")
+    print(f"📊 Monitoreando 8 activos: 4 Forex + 4 Materias Primas")
+    print(f"💡 Estrategia única: S/R Etapa 1 para todos los activos")
     app.run(host="0.0.0.0", port=port, debug=False)
