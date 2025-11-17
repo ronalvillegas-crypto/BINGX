@@ -1,4 +1,4 @@
-# bingx_api.py - VERSIÓN CORREGIDA
+# bingx_api.py - VERSIÓN CORREGIDA CON NUEVOS PARES
 import os
 import requests
 import logging
@@ -14,13 +14,16 @@ class BingXMonitor:
     def obtener_precio_real(self, simbolo):
         """Obtener precio REAL de BingX - Método corregido"""
         try:
-            # Mapeo de símbolos corregido
+            # Mapeo de símbolos ACTUALIZADO con nuevos pares
             symbol_mapping = {
                 'USDCAD': 'USD-CAD',
-                'USDJPY': 'USD-JPY', 
-                'AUDUSD': 'AUD-USD',
-                'EURGBP': 'EUR-GBP',
-                'GBPUSD': 'GBP-USD'
+                'EURUSD': 'EUR-USD',    # NUEVO
+                'EURCHF': 'EUR-CHF',    # NUEVO  
+                'EURAUD': 'EUR-AUD',    # NUEVO
+                'USDJPY': 'USD-JPY',    # MANTENER COMO FALLBACK
+                'AUDUSD': 'AUD-USD',    # MANTENER COMO FALLBACK
+                'EURGBP': 'EUR-GBP',    # MANTENER COMO FALLBACK
+                'GBPUSD': 'GBP-USD'     # MANTENER COMO FALLBACK
             }
             
             bingx_symbol = symbol_mapping.get(simbolo)
@@ -90,6 +93,9 @@ class BingXMonitor:
         """Precio simulado realista como fallback"""
         precios_base = {
             'USDCAD': 1.3450,
+            'EURUSD': 1.0850,    # NUEVO
+            'EURCHF': 0.9550,    # NUEVO
+            'EURAUD': 1.6350,    # NUEVO
             'USDJPY': 148.50,
             'AUDUSD': 0.6520,
             'EURGBP': 0.8550,

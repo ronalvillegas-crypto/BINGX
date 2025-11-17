@@ -1,4 +1,4 @@
-# config.py - Configuraciones centralizadas CON PARÁMETROS OPTIMIZADOS
+# config.py - Configuraciones OPTIMIZADAS CON ESTRATEGIA S/R ETAPA 1
 import os
 
 # Configuración Telegram
@@ -9,56 +9,50 @@ TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 BINGX_API_KEY = os.environ.get('BINGX_API_KEY', '')
 BINGX_SECRET_KEY = os.environ.get('BINGX_SECRET_KEY', '')
 
-# 🎯 PARÁMETROS BACKTESTING OPTIMIZADOS CON LEVERAGE 20x
+# 🎯 PARÁMETROS OPTIMIZADOS BASADOS EN BACKTESTING S/R ETAPA 1
 PARAMETROS_POR_PAR = {
-    'USDCAD': {
-        'winrate': 61.0, 
-        'rentabilidad': 315.6,  # Proyectado anual (26.3% mensual × 12)
+    'EURUSD': {  # NUEVO - ALTA RENTABILIDAD
+        'winrate': 63.4,
+        'rentabilidad': 210.23,
         'leverage': 20,
-        'dca_niveles': [0.006, 0.012],    # OPTIMIZADO: DCA 0.6%/1.2%
-        'tp_niveles': [0.018, 0.030],     # OPTIMIZADO: TP 1.8%/3.0%
+        'dca_niveles': [0.005, 0.010],    # OPTIMIZADO
+        'tp_niveles': [0.015, 0.025],     # OPTIMIZADO
+        'sl': 0.012
+    },
+    'USDCAD': {  # MANTENER - ALTA RENTABILIDAD
+        'winrate': 63.2,
+        'rentabilidad': 168.16,
+        'leverage': 20,
+        'dca_niveles': [0.006, 0.012],
+        'tp_niveles': [0.018, 0.030],
         'sl': 0.015
     },
-    'USDJPY': {
-        'winrate': 58.0, 
-        'rentabilidad': 278.4,  # Proyectado anual (23.2% mensual × 12)
-        'leverage': 20,
-        'dca_niveles': [0.007, 0.014],    # OPTIMIZADO: DCA 0.7%/1.4%
-        'tp_niveles': [0.020, 0.035],     # OPTIMIZADO: TP 2.0%/3.5%
-        'sl': 0.020
+    'EURCHF': {  # NUEVO - RENTABLE
+        'winrate': 48.9,
+        'rentabilidad': 0.61,
+        'leverage': 15,  # Leverage más conservador
+        'dca_niveles': [0.008, 0.016],
+        'tp_niveles': [0.012, 0.020],
+        'sl': 0.018
     },
-    'AUDUSD': {
-        'winrate': 59.0, 
-        'rentabilidad': 283.2,  # Proyectado anual (23.6% mensual × 12)
+    'EURAUD': {  # NUEVO - MÁXIMA RENTABILIDAD
+        'winrate': 64.3,
+        'rentabilidad': 322.94,
         'leverage': 20,
-        'dca_niveles': [0.006, 0.012],    # OPTIMIZADO: DCA 0.6%/1.2%
-        'tp_niveles': [0.018, 0.030],     # OPTIMIZADO: TP 1.8%/3.0%
-        'sl': 0.015
-    },
-    'EURGBP': {
-        'winrate': 57.0, 
-        'rentabilidad': 273.6,  # Proyectado anual (22.8% mensual × 12)
-        'leverage': 20,
-        'dca_niveles': [0.007, 0.014],    # OPTIMIZADO: DCA 0.7%/1.4%
-        'tp_niveles': [0.020, 0.035],     # OPTIMIZADO: TP 2.0%/3.5%
-        'sl': 0.020
-    },
-    'GBPUSD': {
-        'winrate': 60.0, 
-        'rentabilidad': 288.0,  # Proyectado anual (24.0% mensual × 12)
-        'leverage': 20,
-        'dca_niveles': [0.006, 0.012],    # OPTIMIZADO: DCA 0.6%/1.2%
-        'tp_niveles': [0.018, 0.030],     # OPTIMIZADO: TP 1.8%/3.0%
-        'sl': 0.015
+        'dca_niveles': [0.004, 0.008],
+        'tp_niveles': [0.020, 0.035],
+        'sl': 0.010
     }
 }
 
-# MANTENER PARES ORIGINALES
-TOP_5_PARES = ['USDCAD', 'USDJPY', 'AUDUSD', 'EURGBP', 'GBPUSD']
+# ✅ PARES OPTIMIZADOS BASADOS EN BACKTESTING
+TOP_5_PARES = ['EURUSD', 'USDCAD', 'EURCHF', 'EURAUD']
 
-# PARÁMETROS GESTIÓN DE RIESGO (NUEVO)
+# ⚠️ EXCLUIR PARES NO RENTABLES: EURGBP, EURJPY
+
+# 🎯 PARÁMETROS GESTIÓN DE RIESGO OPTIMIZADOS
 RISK_MANAGEMENT = {
-    'max_drawdown': 0.70,  # Stop-loss global 70%
-    'consecutive_loss_limit': 10,  # Límite pérdidas consecutivas
+    'max_drawdown': 0.50,  # Más conservador: 50% stop-loss global
+    'consecutive_loss_limit': 5,  # Más estricto: 5 pérdidas consecutivas
     'capital_inicial': 1000
 }

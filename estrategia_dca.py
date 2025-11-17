@@ -1,4 +1,4 @@
-# estrategia_dca.py - VERSIÓN MEJORADA CON GESTIÓN DE RIESGO
+# estrategia_dca.py - VERSIÓN OPTIMIZADA CON ESTRATEGIA S/R
 import random
 from datetime import datetime
 from config import PARAMETROS_POR_PAR
@@ -10,9 +10,9 @@ class EstrategiaDCA:
         self.bingx = BingXMonitor()
     
     def generar_señal_real(self, par):
-        """Generar señal REAL con gestión de riesgo mejorada"""
+        """Generar señal REAL con estrategia S/R optimizada"""
         try:
-            params = PARAMETROS_POR_PAR.get(par, PARAMETROS_POR_PAR['USDCAD'])
+            params = PARAMETROS_POR_PAR.get(par, PARAMETROS_POR_PAR['EURUSD'])  # Default cambiado a EURUSD
             
             # Obtener datos con fallback robusto
             datos_reales = self.bingx.obtener_datos_tecnicos(par)
@@ -23,32 +23,35 @@ class EstrategiaDCA:
                 rsi = datos_reales['rsi']
                 tendencia = datos_reales['tendencia']
                 fuente = datos_reales['fuente']
+                volatilidad = datos_reales.get('volatilidad', 0.5)
                 
-                # MEJORA: Análisis de tendencia más robusto
-                if rsi < 35 and tendencia == "ALCISTA":
+                # 🎯 CONDICIONES MEJORADAS BASADAS EN S/R ETAPA 1
+                condiciones_compra_alta = (
+                    rsi < 32 and                    # Más sobrevendido
+                    tendencia == "ALCISTA" and      # Tendencia confirmada
+                    volatilidad < 0.8               # Baja volatilidad
+                )
+                
+                condiciones_venta_alta = (
+                    rsi > 68 and                    # Más sobrecomprado  
+                    tendencia == "BAJISTA" and      # Tendencia confirmada
+                    volatilidad < 0.8               # Baja volatilidad
+                )
+                
+                # Asignar dirección y confianza
+                if condiciones_compra_alta:
                     direccion = "COMPRA"
                     confianza = "ALTA"
-                elif rsi > 65 and tendencia == "BAJISTA":
+                elif condiciones_venta_alta:
                     direccion = "VENTA" 
                     confianza = "ALTA"
                 else:
-                    # Estrategia original como fallback
-                    if tendencia == "ALCISTA":
-                        direccion = "COMPRA"
-                    elif tendencia == "BAJISTA":
-                        direccion = "VENTA"
-                    else:
-                        direccion = "COMPRA" if rsi < 50 else "VENTA"
-                    confianza = "MEDIA"
+                    # No operar si no hay condiciones óptimas
+                    return None
                     
             else:
-                # Fallback a simulación inteligente
-                precio = self._precio_simulado_realista(par)
-                rsi = random.randint(30, 70)
-                tendencia = "ALCISTA" if rsi < 40 else "BAJISTA" if rsi > 60 else "LATERAL"
-                fuente = 'SIMULADO'
-                direccion = "COMPRA" if rsi < 50 else "VENTA"
-                confianza = "MEDIA"
+                # Fallback más conservador - no generar señales sin datos
+                return None
             
             # Calcular niveles con parámetros optimizados
             if direccion == "COMPRA":
@@ -75,48 +78,30 @@ class EstrategiaDCA:
                 'dca_2': round(dca_2, 5),
                 'rsi': rsi,
                 'tendencia': tendencia,
+                'volatilidad': volatilidad,
                 'winrate_esperado': params['winrate'],
                 'rentabilidad_esperada': params['rentabilidad'],
                 'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 'fuente_datos': fuente,
                 'leverage': params['leverage'],
-                'confianza': confianza  # NUEVO: nivel de confianza
+                'confianza': confianza
             }
             
         except Exception as e:
             print(f"❌ Error crítico en generar_señal_real: {e}")
-            # Fallback de emergencia
-            return self._señal_emergencia(par)
+            return None  # No generar señales en caso de error
     
     def _precio_simulado_realista(self, par):
         """Precio simulado realista para fallback"""
         precios_base = {
-            'USDCAD': 1.3450, 'USDJPY': 148.50, 'AUDUSD': 0.6520,
+            'EURUSD': 1.0850, 'USDCAD': 1.3450, 'EURCHF': 0.9550,
+            'EURAUD': 1.6350, 'USDJPY': 148.50, 'AUDUSD': 0.6520,
             'EURGBP': 0.8550, 'GBPUSD': 1.2650
         }
         precio_base = precios_base.get(par, 1.0000)
         return precio_base * random.uniform(0.998, 1.002)
     
     def _señal_emergencia(self, par):
-        """Señal de emergencia si todo falla"""
-        params = PARAMETROS_POR_PAR.get(par, PARAMETROS_POR_PAR['USDCAD'])
-        precio = self._precio_simulado_realista(par)
-        
-        return {
-            'par': par,
-            'direccion': random.choice(['COMPRA', 'VENTA']),
-            'precio_actual': round(precio, 5),
-            'tp1': round(precio * 1.018, 5),
-            'tp2': round(precio * 1.030, 5),
-            'sl': round(precio * 0.985, 5),
-            'dca_1': round(precio * 0.994, 5),
-            'dca_2': round(precio * 0.988, 5),
-            'rsi': 50,
-            'tendencia': 'LATERAL',
-            'winrate_esperado': params['winrate'],
-            'rentabilidad_esperada': params['rentabilidad'],
-            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'fuente_datos': 'EMERGENCIA',
-            'leverage': params['leverage'],
-            'confianza': 'BAJA'
-        }
+        """Señal de emergencia si todo falla - MÁS CONSERVADORA"""
+        # En la estrategia optimizada, no generamos señales de emergencia
+        return None

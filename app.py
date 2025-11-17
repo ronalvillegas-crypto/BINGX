@@ -1,4 +1,4 @@
-# app.py - Servidor con monitoreo en tiempo real (CORREGIDO)
+# app.py - Servidor con monitoreo optimizado
 import os
 import threading
 from flask import Flask, jsonify
@@ -6,7 +6,8 @@ from monitor_mercado import monitor
 
 app = Flask(__name__)
 
-print("🚀 BOT TRADING - MONITOREO EN TIEMPO REAL")
+print("🚀 BOT TRADING OPTIMIZADO - ESTRATEGIA S/R ETAPA 1")
+print("🎯 Pares activos: EURUSD, USDCAD, EURCHF, EURAUD")
 
 # Variable para controlar si ya iniciamos el monitoreo
 monitoreo_iniciado = False
@@ -15,13 +16,16 @@ monitoreo_iniciado = False
 def home():
     return jsonify({
         "status": "online", 
-        "service": "Bot Trading - Detección en Tiempo Real",
+        "service": "Bot Trading Optimizado - Estrategia S/R Etapa 1",
+        "pares_activos": ["EURUSD", "USDCAD", "EURCHF", "EURAUD"],
+        "estrategia": "S/R Etapa 1 Optimizada",
         "modulos_activos": [
             "Monitor Mercado", "Estrategia DCA", "Gestor Operaciones", "Telegram Bot"
         ],
         "estadisticas": monitor.gestor.estadisticas,
         "operaciones_activas": len(monitor.gestor.operaciones_activas),
-        "monitoreo_activo": monitor.monitoreando
+        "monitoreo_activo": monitor.monitoreando,
+        "riesgo": monitor.obtener_estadisticas_riesgo()
     })
 
 @app.route('/iniciar-monitoreo')
@@ -34,7 +38,8 @@ def iniciar_monitoreo():
         monitoreo_iniciado = True
         return jsonify({
             "status": "monitoreo_iniciado",
-            "mensaje": "Monitoreo en tiempo real ACTIVADO"
+            "mensaje": "Monitoreo S/R Etapa 1 ACTIVADO",
+            "pares": ["EURUSD", "USDCAD", "EURCHF", "EURAUD"]
         })
     return jsonify({"status": "ya_activo", "mensaje": "Monitoreo ya está activo"})
 
@@ -52,7 +57,8 @@ def estadisticas():
     return jsonify({
         "estadisticas": monitor.gestor.estadisticas,
         "operaciones_activas": monitor.gestor.operaciones_activas,
-        "historial_reciente": monitor.gestor.historial[-5:] if monitor.gestor.historial else []
+        "historial_reciente": monitor.gestor.historial[-5:] if monitor.gestor.historial else [],
+        "riesgo": monitor.obtener_estadisticas_riesgo()
     })
 
 @app.route('/forzar-señal/<par>')
@@ -60,18 +66,24 @@ def forzar_señal(par):
     """Forzar una señal manualmente (para testing)"""
     from estrategia_dca import EstrategiaDCA
     
-    if par not in ['USDCAD', 'USDJPY', 'AUDUSD', 'EURGBP', 'GBPUSD']:
-        return jsonify({"status": "error", "mensaje": "Par no válido"})
+    if par not in ['EURUSD', 'USDCAD', 'EURCHF', 'EURAUD']:
+        return jsonify({"status": "error", "mensaje": "Par no válido. Pares permitidos: EURUSD, USDCAD, EURCHF, EURAUD"})
     
     estrategia = EstrategiaDCA()
     señal = estrategia.generar_señal_real(par)
-    monitor.ejecutar_señal(señal)
     
-    return jsonify({
-        "status": "señal_forzada",
-        "par": par,
-        "señal": señal
-    })
+    if señal:
+        monitor.ejecutar_señal(señal)
+        return jsonify({
+            "status": "señal_forzada",
+            "par": par,
+            "señal": señal
+        })
+    else:
+        return jsonify({
+            "status": "no_señal",
+            "mensaje": "No se pudo generar señal - condiciones no óptimas"
+        })
 
 @app.route('/status')
 def status():
@@ -81,7 +93,9 @@ def status():
         "operaciones_activas": len(monitor.gestor.operaciones_activas),
         "total_operaciones": monitor.gestor.estadisticas['total_operaciones'],
         "operaciones_ganadoras": monitor.gestor.estadisticas['operaciones_ganadoras'],
-        "profit_total": monitor.gestor.estadisticas['profit_total']
+        "profit_total": monitor.gestor.estadisticas['profit_total'],
+        "estrategia": "S/R Etapa 1 Optimizada",
+        "pares_activos": ["EURUSD", "USDCAD", "EURCHF", "EURAUD"]
     })
 
 # Iniciar monitoreo automáticamente al primer request
@@ -89,12 +103,12 @@ def status():
 def iniciar_monitoreo_auto():
     global monitoreo_iniciado
     if not monitoreo_iniciado:
-        print("🔄 Iniciando monitoreo automático...")
+        print("🔄 Iniciando monitoreo automático S/R Etapa 1...")
         threading.Thread(target=monitor.iniciar_monitoreo, daemon=True).start()
         monitoreo_iniciado = True
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
-    print(f"🌐 Servidor iniciado en puerto {port}")
-    print(f"🔍 Monitoreo en tiempo real: ACTIVADO AL PRIMER REQUEST")
+    print(f"🌐 Servidor optimizado iniciado en puerto {port}")
+    print(f"🔍 Monitoreo S/R Etapa 1: ACTIVADO AL PRIMER REQUEST")
     app.run(host="0.0.0.0", port=port, debug=False)

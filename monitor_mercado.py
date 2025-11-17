@@ -1,4 +1,4 @@
-# monitor_mercado.py - Monitoreo en tiempo real CON GESTIÓN DE RIESGO
+# monitor_mercado.py - Monitoreo optimizado con nuevos pares
 import time
 import threading
 from datetime import datetime, timedelta
@@ -71,32 +71,20 @@ class MonitorMercado:
                 print(f"📡 No se pudieron obtener datos para {par}")
                 return None
             
-            print(f"🔍 Analizando {par}: RSI={datos_reales['rsi']}, Tendencia={datos_reales['tendencia']}")
+            print(f"🔍 Analizando {par}: RSI={datos_reales['rsi']}, Tendencia={datos_reales['tendencia']}, Volatilidad={datos_reales.get('volatilidad', 0):.2f}")
             
-            # CONDICIONES MEJORADAS PARA SEÑAL
-            condiciones_compra_alta = (
-                datos_reales['rsi'] < 35 and      # Sobrevendido
-                datos_reales['tendencia'] == 'ALCISTA'  # Tendencia alcista
-            )
+            # GENERAR SEÑAL CON ESTRATEGIA OPTIMIZADA
+            señal = self.estrategia.generar_señal_real(par)
             
-            condiciones_venta_alta = (
-                datos_reales['rsi'] > 65 and      # Sobrecomprado  
-                datos_reales['tendencia'] == 'BAJISTA'  # Tendencia bajista
-            )
-            
-            # Verificar si hay oportunidad de alta confianza
-            if condiciones_compra_alta or condiciones_venta_alta:
+            if señal:
                 # Evitar señales repetidas (mínimo 2 horas entre señales del mismo par)
                 ultima_señal = self.ultima_señal_por_par.get(par)
                 if ultima_señal and (datetime.now() - ultima_señal).seconds < 7200:
                     print(f"⏰ Señal de {par} ignorada (muy reciente)")
                     return None
                 
-                # GENERAR SEÑAL REAL
-                señal = self.estrategia.generar_señal_real(par)
                 self.ultima_señal_por_par[par] = datetime.now()
-                
-                print(f"🎯 OPORTUNIDAD DETECTADA en {par}! Confianza: {señal.get('confianza', 'ALTA')}")
+                print(f"🎯 SEÑAL CONFIRMADA en {par}! Confianza: {señal.get('confianza', 'ALTA')}")
                 return señal
                 
             return None
@@ -190,9 +178,10 @@ class MonitorMercado:
         print(f"💰 Capital inicial: ${self.capital_inicial}")
         print(f"⛔ Stop-loss global: {self.max_drawdown*100}% (${self.capital_inicial * (1 - self.max_drawdown):.2f})")
         print(f"📉 Máx pérdidas consecutivas: {self.consecutive_loss_limit}")
+        print("🎯 Estrategia: S/R Etapa 1 Optimizada")
         
         # Enviar mensaje de inicio a Telegram
-        mensaje_inicio = f"🤖 <b>BOT INICIADO</b>\n\n📊 <b>Configuración:</b>\n• Pares: {', '.join(TOP_5_PARES)}\n• Capital: ${self.capital_inicial}\n• Stop-loss: {self.max_drawdown*100}%\n• Máx pérdidas: {self.consecutive_loss_limit}"
+        mensaje_inicio = f"🤖 <b>BOT OPTIMIZADO INICIADO</b>\n\n📊 <b>Configuración S/R Etapa 1:</b>\n• Pares: {', '.join(TOP_5_PARES)}\n• Capital: ${self.capital_inicial}\n• Stop-loss: {self.max_drawdown*100}%\n• Máx pérdidas: {self.consecutive_loss_limit}\n• Estrategia: S/R Optimizada"
         self.telegram.enviar_mensaje(mensaje_inicio)
         
         ciclo = 0
@@ -235,7 +224,7 @@ class MonitorMercado:
         
         # Enviar mensaje de resumen
         stats = self.obtener_estadisticas_riesgo()
-        mensaje_resumen = f"🛑 <b>BOT DETENIDO</b>\n\n📊 <b>Resumen:</b>\n• Capital final: ${stats['capital_actual']:.2f}\n• Operaciones: {stats['total_operaciones']}\n• Win Rate: {stats['win_rate']:.1f}%\n• Drawdown: {stats['drawdown_actual']:.1f}%"
+        mensaje_resumen = f"🛑 <b>BOT DETENIDO</b>\n\n📊 <b>Resumen S/R Etapa 1:</b>\n• Capital final: ${stats['capital_actual']:.2f}\n• Operaciones: {stats['total_operaciones']}\n• Win Rate: {stats['win_rate']:.1f}%\n• Drawdown: {stats['drawdown_actual']:.1f}%"
         self.telegram.enviar_mensaje(mensaje_resumen)
         
         print("🛑 MONITOREO DETENIDO")
