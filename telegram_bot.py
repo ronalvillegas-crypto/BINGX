@@ -1,6 +1,7 @@
 # telegram_bot.py - Comunicaciones REALES CON ESTRATEGIA S/R
 import requests
 import logging
+from datetime import datetime
 from config import TELEGRAM_TOKEN, TELEGRAM_CHAT_ID
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,10 @@ class TelegramBotReal:
         # FORMATO MEJORADO PARA NIVELES S/R
         niveles_support = [round(s, 5) for s in señal.get('niveles_sr', {}).get('support', [])]
         niveles_resistance = [round(r, 5) for r in señal.get('niveles_sr', {}).get('resistance', [])]
+        
+        # TIMESTAMP MEJORADO
+        timestamp_obj = datetime.strptime(señal['timestamp'], "%Y-%m-%d %H:%M:%S")
+        timestamp_formateado = timestamp_obj.strftime("%d/%m/%Y %H:%M:%S")
         
         # SECCIÓN S/R MEJORADA
         info_sr = f"""
@@ -85,15 +90,25 @@ class TelegramBotReal:
 
 {mensaje_extra}
 
-⏰ <b>HORA SEÑAL:</b> {señal['timestamp']}
+⏰ <b>HORA SEÑAL:</b> {timestamp_formateado}
         """
         
         return self.enviar_mensaje(mensaje.strip())
     
     def enviar_cierre_operacion(self, operacion, consecutive_losses=0, capital_actual=1000):
-        """Enviar cierre REAL de operación con gestión de riesgo"""
+        """Enviar cierre REAL de operación con gestión de riesgo - CORREGIDO"""
         emoji = "🏆" if operacion['profit'] > 0 else "🛑"
         resultado_emoji = "✅" if operacion['profit'] > 0 else "❌"
+        
+        # CALCULAR DURACIÓN REAL - CORREGIDO
+        if operacion['timestamp_cierre'] and operacion['timestamp_apertura']:
+            duracion = operacion['timestamp_cierre'] - operacion['timestamp_apertura']
+            horas = duracion.seconds // 3600
+            minutos = (duracion.seconds % 3600) // 60
+            segundos = duracion.seconds % 60
+            duracion_str = f"{horas:02d}:{minutos:02d}:{segundos:02d}"
+        else:
+            duracion_str = "N/A"
         
         mensaje = f"""
 {emoji} <b>OPERACIÓN S/R CERRADA</b> {emoji}
@@ -113,7 +128,7 @@ class TelegramBotReal:
 • Capital Actual: <b>${capital_actual:.2f}</b>
 • Resultado Operación: {"GANADORA" if operacion['profit'] > 0 else "PERDEDORA"}
 
-⏰ <b>Duración:</b> {operacion['timestamp_cierre'].strftime('%H:%M:%S')}
+⏰ <b>Duración Real:</b> {duracion_str}
         """
         
         return self.enviar_mensaje(mensaje.strip())
