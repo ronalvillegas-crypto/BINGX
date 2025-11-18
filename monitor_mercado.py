@@ -2,14 +2,16 @@
 import time
 import threading
 from datetime import datetime, timedelta
-from config import TOP_5_PARES, RISK_MANAGEMENT
-from yahoo_api import YahooFinanceAPI
-from estrategia_dca import EstrategiaDCA
-from gestor_operaciones import GestorOperaciones
-from telegram_bot import TelegramBotReal
 
 class MonitorMercado:
     def __init__(self):
+        # IMPORTACIONES DENTRO DEL MÉTODO PARA EVITAR CIRCULARIDAD
+        from config import TOP_5_PARES, RISK_MANAGEMENT
+        from yahoo_api import YahooFinanceAPI
+        from estrategia_dca import EstrategiaDCA
+        from gestor_operaciones import GestorOperaciones
+        from telegram_bot import TelegramBotReal
+        
         self.yahoo = YahooFinanceAPI()
         self.estrategia = EstrategiaDCA()
         self.gestor = GestorOperaciones()
@@ -172,6 +174,8 @@ class MonitorMercado:
     
     def iniciar_monitoreo(self):
         """Iniciar monitoreo continuo"""
+        from config import TOP_5_PARES
+        
         self.monitoreando = True
         print("🔍 INICIANDO MONITOREO EN TIEMPO REAL...")
         print(f"📊 Pares monitoreados: {TOP_5_PARES}")
@@ -229,5 +233,5 @@ class MonitorMercado:
         
         print("🛑 MONITOREO DETENIDO")
 
-# Instancia global - ESTO ES IMPORTANTE PARA LA IMPORTACIÓN
-monitor = MonitorMercado()
+# ELIMINAR LA INSTANCIA GLOBAL - CAUSA DEL PROBLEMA
+# monitor = MonitorMercado()

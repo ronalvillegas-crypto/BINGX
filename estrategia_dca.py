@@ -1,24 +1,40 @@
 # estrategia_dca.py - ESTRATEGIA S/R REAL CON INDICADORES REALES
 import random
 from datetime import datetime
-from config import PARAMETROS_POR_PAR
-from yahoo_api import YahooFinanceAPI
-from analisis_tecnico import AnalisisTechnicoSR
-from indicadores_reales import IndicadoresReales  # NUEVO
 
 class EstrategiaDCA:
     def __init__(self):
         self.operaciones_activas = {}
-        self.yahoo = YahooFinanceAPI()
-        self.analisis_sr = AnalisisTechnicoSR()
-        self.indicadores_reales = IndicadoresReales()  # NUEVO
+        # IMPORTACIONES DIFERIDAS
+        self.yahoo = None
+        self.analisis_sr = None
+        self.indicadores_reales = None
+    
+    def _get_yahoo(self):
+        if self.yahoo is None:
+            from yahoo_api import YahooFinanceAPI
+            self.yahoo = YahooFinanceAPI()
+        return self.yahoo
+    
+    def _get_analisis_sr(self):
+        if self.analisis_sr is None:
+            from analisis_tecnico import AnalisisTechnicoSR
+            self.analisis_sr = AnalisisTechnicoSR()
+        return self.analisis_sr
+    
+    def _get_indicadores_reales(self):
+        if self.indicadores_reales is None:
+            from indicadores_reales import IndicadoresReales
+            self.indicadores_reales = IndicadoresReales()
+        return self.indicadores_reales
     
     def generar_señal_real(self, par):
         """Generar señal REAL con indicadores REALES"""
         try:
+            from config import PARAMETROS_POR_PAR
             params = PARAMETROS_POR_PAR.get(par, PARAMETROS_POR_PAR['EURUSD'])
             
-            # Obtener datos TÉCNICOS REALES (NUEVO)
+            # Obtener datos TÉCNICOS REALES
             datos_reales = self.obtener_datos_tecnicos_reales(par)
             
             if not datos_reales:
@@ -33,7 +49,7 @@ class EstrategiaDCA:
             print(f"🔍 Analizando {par} - Precio: {precio:.5f}, RSI: {rsi}, Tendencia: {tendencia}, Fuente: {fuente}")
             
             # 🎯 ANÁLISIS S/R REAL (ESTRATEGIA BACKTESTING)
-            analisis_sr = self.analisis_sr.analizar_estructura_mercado(
+            analisis_sr = self._get_analisis_sr().analizar_estructura_mercado(
                 par, precio, tendencia, rsi
             )
             
@@ -44,12 +60,12 @@ class EstrategiaDCA:
             
             # Verificar condiciones óptimas según backtesting
             if (analisis_sr['señal'] == "COMPRA" and 
-                not self.analisis_sr.es_zona_compra_optima(analisis_sr)):
+                not self._get_analisis_sr().es_zona_compra_optima(analisis_sr)):
                 print(f"📊 {par}: Condiciones compra no óptimas - {analisis_sr['motivo']}")
                 return None
                 
             if (analisis_sr['señal'] == "VENTA" and 
-                not self.analisis_sr.es_zona_venta_optima(analisis_sr)):
+                not self._get_analisis_sr().es_zona_venta_optima(analisis_sr)):
                 print(f"📊 {par}: Condiciones venta no óptimas - {analisis_sr['motivo']}") 
                 return None
             
@@ -106,15 +122,15 @@ class EstrategiaDCA:
         """Obtener datos técnicos REALES usando IndicadoresReales"""
         try:
             # Usar el nuevo módulo de indicadores reales
-            datos = self.indicadores_reales.obtener_indicadores_reales(par)
+            datos = self._get_indicadores_reales().obtener_indicadores_reales(par)
             
             if datos and datos['precio_actual']:
                 return datos
             else:
                 # Fallback al método anterior si el nuevo falla
-                return self.yahoo.obtener_datos_tecnicos(par)
+                return self._get_yahoo().obtener_datos_tecnicos(par)
                 
         except Exception as e:
             print(f"❌ Error obteniendo datos técnicos reales: {e}")
             # Fallback al método anterior
-            return self.yahoo.obtener_datos_tecnicos(par)
+            return self._get_yahoo().obtener_datos_tecnicos(par)

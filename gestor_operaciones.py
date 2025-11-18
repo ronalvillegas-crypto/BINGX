@@ -1,194 +1,138 @@
-# app.py - CON DIAGNÓSTICO Y RUTAS FIX
-import os
+# gestor_operaciones.py - GESTIÓN REAL DE OPERACIONES CON SIMULACIÓN AVANZADA
 import time
-import threading
-from flask import Flask, jsonify
+import random
 from datetime import datetime
-import logging
 
-# Configurar logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-print("🚀 INICIANDO BOT TRADING - MODO DIAGNÓSTICO COMPLETO")
-print("=" * 60)
-
-app = Flask(__name__)
-
-# Verificar configuración primero
-def verificar_configuracion():
-    token = os.environ.get('TELEGRAM_TOKEN')
-    chat_id = os.environ.get('TELEGRAM_CHAT_ID')
-    
-    print(f"🔍 Verificando configuración...")
-    print(f"   TELEGRAM_TOKEN: {'✅' if token else '❌ NO CONFIGURADO'}")
-    print(f"   TELEGRAM_CHAT_ID: {'✅' if chat_id else '❌ NO CONFIGURADO'}")
-    
-    if not token or not chat_id:
-        print("❌ ERROR CRÍTICO: Variables de entorno faltantes")
-        print("💡 Solución: Ve a Render.com → Tu servicio → Environment → Add Environment Variables")
-        return False
-    
-    print("✅ Configuración Telegram: OK")
-    return True
-
-# Inicializar monitor
-monitor = None
-try:
-    from monitor_mercado import MonitorMercado
-    monitor = MonitorMercado()
-    print("✅ Monitor de mercado inicializado")
-except Exception as e:
-    print(f"❌ Error inicializando monitor: {e}")
-
-# Iniciar bot en segundo plano si la configuración es correcta
-if monitor and verificar_configuracion():
-    try:
-        def iniciar_bot():
-            print("🤖 INICIANDO BUCLE PRINCIPAL DE TRADING...")
-            print("📊 Monitoreando pares:", ['EURUSD', 'USDCAD', 'EURCHF', 'EURAUD', 'XAUUSD', 'XAGUSD', 'OILUSD', 'XPTUSD'])
-            monitor.iniciar_monitoreo()
-        
-        hilo_bot = threading.Thread(target=iniciar_bot, daemon=True)
-        hilo_bot.start()
-        print("✅ Bot de trading iniciado en segundo plano")
-        
-    except Exception as e:
-        print(f"❌ Error iniciando bot: {e}")
-else:
-    print("🛑 Bot NO iniciado - Configuración incompleta")
-
-# ================= RUTAS FLASK =================
-
-@app.route('/')
-def home():
-    """Página principal"""
-    return jsonify({
-        "status": "ACTIVO" if monitor and monitor.monitoreando else "CONFIGURANDO",
-        "service": "Bot Trading Multi-Activos",
-        "message": "Usa /debug para diagnóstico completo",
-        "timestamp": datetime.now().isoformat(),
-        "endpoints_available": ["/", "/debug", "/test-telegram", "/status", "/forzar-analisis/EURUSD"]
-    })
-
-@app.route('/debug')
-def debug():
-    """Endpoint de diagnóstico completo"""
-    info = {
-        "status": "online",
-        "timestamp": datetime.now().isoformat(),
-        "environment": {
-            "TELEGRAM_TOKEN": "CONFIGURADO" if os.environ.get('TELEGRAM_TOKEN') else "FALTANTE",
-            "TELEGRAM_CHAT_ID": "CONFIGURADO" if os.environ.get('TELEGRAM_CHAT_ID') else "FALTANTE",
-            "PYTHON_VERSION": os.environ.get('PYTHON_VERSION', '3.13.4')
-        },
-        "monitor": {
-            "inicializado": monitor is not None,
-            "monitoreando": monitor.monitoreando if monitor else False,
-            "operaciones_activas": len(monitor.gestor.operaciones_activas) if monitor else 0,
-            "capital_actual": monitor.capital_actual if monitor else 0
-        },
-        "system": {
-            "python_version": "3.13.4",
-            "flask_status": "running"
+class GestorOperaciones:
+    def __init__(self):
+        self.operaciones_activas = {}
+        self.historial = []
+        self.estadisticas = {
+            'total_operaciones': 0,
+            'operaciones_ganadoras': 0,
+            'operaciones_perdedoras': 0,
+            'profit_total': 0.0
         }
-    }
-    return jsonify(info)
-
-@app.route('/test-telegram')
-def test_telegram():
-    """Probar conexión con Telegram"""
-    if not monitor:
-        return jsonify({"status": "error", "message": "Monitor no disponible"})
+        # IMPORTAR DENTRO DEL MÉTODO CUANDO SE NECESITE
+        self.simulador = None
     
-    try:
-        mensaje = f"🤖 TEST DE CONEXIÓN EXITOSO\nHora: {datetime.now().strftime('%H:%M:%S')}\nBot: Trading Multi-Activos"
-        exito = monitor.telegram.enviar_mensaje(mensaje)
+    def _get_simulador(self):
+        """Obtener simulador (lazy loading)"""
+        if self.simulador is None:
+            from simulador_avanzado import SimuladorAvanzado
+            self.simulador = SimuladorAvanzado()
+        return self.simulador
+    
+    def abrir_operacion(self, señal):
+        """Abrir operación REAL con seguimiento - TIMESTAMP CORREGIDO"""
+        operacion_id = f"{señal['par']}_{datetime.now().strftime('%H%M%S')}"
         
-        return jsonify({
-            "status": "success" if exito else "error",
-            "message": "✅ Mensaje de test enviado a Telegram" if exito else "❌ Error enviando mensaje",
-            "timestamp": datetime.now().isoformat()
-        })
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)})
-
-@app.route('/status')
-def status():
-    """Estado del bot"""
-    return jsonify({
-        "status": "OPERACIONAL" if monitor and monitor.monitoreando else "INICIALIZANDO",
-        "bot_activo": monitor.monitoreando if monitor else False,
-        "operaciones_activas": len(monitor.gestor.operaciones_activas) if monitor else 0,
-        "ultima_actualizacion": datetime.now().isoformat()
-    })
-
-@app.route('/forzar-analisis/<par>')
-def forzar_analisis(par):
-    """Forzar análisis de un par específico"""
-    if not monitor:
-        return jsonify({"status": "error", "message": "Monitor no disponible"})
-    
-    pares_permitidos = ['EURUSD', 'USDCAD', 'EURCHF', 'EURAUD', 'XAUUSD', 'XAGUSD', 'OILUSD', 'XPTUSD']
-    
-    if par not in pares_permitidos:
-        return jsonify({
-            "status": "error", 
-            "message": f"Par no válido. Usa: {', '.join(pares_permitidos)}"
-        })
-    
-    try:
-        print(f"🔍 Forzando análisis de {par}...")
-        señal = monitor.analizar_par(par)
+        operacion = {
+            'id': operacion_id,
+            'par': señal['par'],
+            'direccion': señal['direccion'],
+            'precio_entrada': señal['precio_actual'],
+            'precio_actual': señal['precio_actual'],
+            'tp1': señal['tp1'],
+            'tp2': señal['tp2'],
+            'sl': señal['sl'],
+            'dca_niveles': [
+                {'nivel': 1, 'precio': señal['dca_1'], 'activado': False},
+                {'nivel': 2, 'precio': señal['dca_2'], 'activado': False}
+            ],
+            'estado': 'ACTIVA',
+            'timestamp_apertura': datetime.now(),  # ✅ OBJETO DATETIME
+            'timestamp_cierre': None,
+            'resultado': None,
+            'profit': 0.0,
+            'niveles_dca_activados': 0,
+            'precio_promedio': señal['precio_actual'],
+            'leverage': señal.get('leverage', 1)
+        }
         
-        if señal:
-            print(f"🎯 Señal generada para {par}")
-            monitor.ejecutar_señal(señal)
+        self.operaciones_activas[operacion_id] = operacion
+        self.estadisticas['total_operaciones'] += 1
         
-        return jsonify({
-            "par": par,
-            "señal_generada": señal is not None,
-            "señal": señal,
-            "timestamp": datetime.now().isoformat()
-        })
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)})
-
-@app.route('/estadisticas')
-def estadisticas():
-    """Estadísticas del bot"""
-    if not monitor:
-        return jsonify({"status": "error", "message": "Monitor no disponible"})
+        return operacion_id
     
-    try:
-        stats = monitor.obtener_estadisticas_riesgo()
-        return jsonify({
-            "status": "success",
-            "estadisticas": stats,
-            "timestamp": datetime.now().isoformat()
-        })
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)})
-
-# Manejo de errores
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify({
-        "status": "error",
-        "message": "Endpoint no encontrado",
-        "endpoints_available": [
-            "/", "/debug", "/test-telegram", "/status", 
-            "/estadisticas", "/forzar-analisis/EURUSD"
-        ]
-    }), 404
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    print(f"🌐 Servidor web iniciando en puerto {port}")
-    print(f"📡 Endpoints disponibles:")
-    print(f"   • https://bingx-f9ol.onrender.com/")
-    print(f"   • https://bingx-f9ol.onrender.com/debug")
-    print(f"   • https://bingx-f9ol.onrender.com/test-telegram")
-    print(f"   • https://bingx-f9ol.onrender.com/forzar-analisis/EURUSD")
-    print("=" * 60)
-    app.run(host="0.0.0.0", port=port, debug=False)
+    def simular_seguimiento(self, operacion_id):
+        """Seguimiento MÁS REALISTA con simulador avanzado"""
+        if operacion_id not in self.operaciones_activas:
+            return None
+        
+        operacion = self.operaciones_activas[operacion_id]
+        
+        # Verificar DCA primero
+        self._verificar_dca(operacion)
+        
+        # Usar simulador avanzado en lugar de movimiento aleatorio simple
+        simulador = self._get_simulador()
+        resultado = simulador.simular_operacion_realista(operacion)
+        
+        if resultado:
+            # Calcular profit REALISTA
+            profit = resultado.get('profit', self._calcular_profit_realista(operacion, resultado['precio_cierre']))
+            
+            operacion['estado'] = 'CERRADA'
+            operacion['timestamp_cierre'] = datetime.now()  # ✅ OBJETO DATETIME
+            operacion['resultado'] = resultado['resultado']
+            operacion['profit'] = profit
+            operacion['precio_cierre'] = resultado['precio_cierre']
+            
+            # Actualizar estadísticas
+            if profit > 0:
+                self.estadisticas['operaciones_ganadoras'] += 1
+            else:
+                self.estadisticas['operaciones_perdedoras'] += 1
+            self.estadisticas['profit_total'] += profit
+            
+            # Mover a historial
+            self.historial.append(operacion)
+            del self.operaciones_activas[operacion_id]
+            
+            return {
+                'operacion': operacion,
+                'resultado': resultado['resultado'],
+                'profit': profit
+            }
+        
+        return {'operacion': operacion, 'resultado': None}
+    
+    def _verificar_dca(self, operacion):
+        """Verificar y activar niveles DCA"""
+        precio_actual = operacion['precio_actual']
+        
+        for nivel in operacion['dca_niveles']:
+            if not nivel['activado']:
+                if operacion['direccion'] == 'COMPRA':
+                    if precio_actual <= nivel['precio']:
+                        nivel['activado'] = True
+                        operacion['niveles_dca_activados'] += 1
+                        # Recalcular precio promedio
+                        self._recalcular_precio_promedio(operacion)
+                else:  # VENTA
+                    if precio_actual >= nivel['precio']:
+                        nivel['activado'] = True
+                        operacion['niveles_dca_activados'] += 1
+                        # Recalcular precio promedio
+                        self._recalcular_precio_promedio(operacion)
+    
+    def _recalcular_precio_promedio(self, operacion):
+        """Recalcular precio promedio después de DCA"""
+        precios = [operacion['precio_entrada']]
+        for nivel in operacion['dca_niveles']:
+            if nivel['activado']:
+                precios.append(nivel['precio'])
+        
+        operacion['precio_promedio'] = sum(precios) / len(precios)
+    
+    def _calcular_profit_realista(self, operacion, precio_cierre):
+        """Calcular profit de forma REALISTA con leverage"""
+        if operacion['direccion'] == "COMPRA":
+            profit_pct = ((precio_cierre - operacion['precio_promedio']) / operacion['precio_promedio']) * 100
+        else:
+            profit_pct = ((operacion['precio_promedio'] - precio_cierre) / operacion['precio_promedio']) * 100
+        
+        # Aplicar leverage
+        profit_final = profit_pct * operacion.get('leverage', 1)
+        return round(profit_final, 2)
