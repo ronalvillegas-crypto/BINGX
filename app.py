@@ -1,4 +1,4 @@
-# app.py - CON TODAS LAS RUTAS Y SIN IMPORTACIONES CIRCULARES
+# app.py - BOT AUTOMÁTICO CORREGIDO
 import os
 import time
 import threading
@@ -10,7 +10,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-print("🚀 INICIANDO BOT TRADING - SIN IMPORTACIONES CIRCULARES")
+print("🚀 INICIANDO BOT TRADING - MODO AUTOMÁTICO")
 print("=" * 60)
 
 app = Flask(__name__)
@@ -32,7 +32,7 @@ def verificar_configuracion():
     print("✅ Configuración Telegram: OK")
     return True
 
-# Inicializar monitor CON MANEJO DE ERRORES MEJORADO
+# Inicializar monitor
 monitor = None
 def inicializar_monitor():
     global monitor
@@ -51,21 +51,38 @@ def inicializar_monitor():
 config_ok = verificar_configuracion()
 monitor_ok = inicializar_monitor()
 
-# Iniciar bot en segundo plano si todo está correcto
-if config_ok and monitor_ok:
-    try:
-        def iniciar_bot():
-            print("🤖 INICIANDO BUCLE PRINCIPAL DE TRADING...")
-            monitor.iniciar_monitoreo()
-        
-        hilo_bot = threading.Thread(target=iniciar_bot, daemon=True)
-        hilo_bot.start()
-        print("✅ Bot de trading iniciado en segundo plano")
-        
-    except Exception as e:
-        print(f"❌ Error iniciando bot: {e}")
+# FUNCIÓN PARA INICIAR BOT AUTOMÁTICO
+def iniciar_bot_automatico():
+    if config_ok and monitor_ok:
+        try:
+            def ejecutar_bot():
+                print("🤖 INICIANDO BUCLE PRINCIPAL DE TRADING AUTOMÁTICO...")
+                print("🔄 El bot monitoreará automáticamente cada 2 minutos")
+                print("📊 Pares: EURUSD, USDCAD, EURCHF, EURAUD, XAUUSD, XAGUSD, OILUSD, XPTUSD")
+                monitor.iniciar_monitoreo()
+            
+            # Iniciar en un hilo separado
+            hilo_bot = threading.Thread(target=ejecutar_bot, daemon=True)
+            hilo_bot.start()
+            print("✅ Bot de trading AUTOMÁTICO iniciado en segundo plano")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error iniciando bot automático: {e}")
+            return False
+    else:
+        print(f"🛑 Bot NO iniciado - Config: {config_ok}, Monitor: {monitor_ok}")
+        return False
+
+# INICIAR BOT AUTOMÁTICAMENTE AL ARRANCAR
+print("🚀 INICIANDO SISTEMA AUTOMÁTICO...")
+bot_iniciado = iniciar_bot_automatico()
+
+if bot_iniciado:
+    print("🎯 El bot está ahora monitoreando mercados AUTOMÁTICAMENTE")
+    print("⏰ Enviará señales cada 2 minutos cuando detecte oportunidades")
 else:
-    print(f"🛑 Bot NO iniciado - Config: {config_ok}, Monitor: {monitor_ok}")
+    print("💤 Bot en modo manual - usa endpoints para activar")
 
 # ================= RUTAS FLASK =================
 
@@ -77,19 +94,24 @@ def home():
     return jsonify({
         "status": estado,
         "service": "Bot Trading Multi-Activos",
-        "message": "Bot funcionando correctamente",
+        "message": "Bot funcionando correctamente" if estado == "ACTIVO" else "Bot iniciándose",
+        "modo": "AUTOMÁTICO" if bot_iniciado else "MANUAL",
         "timestamp": datetime.now().isoformat(),
         "endpoints_available": [
             "/", "/debug", "/test-telegram", "/status", 
-            "/estadisticas", "/forzar-analisis/EURUSD"
+            "/estadisticas", "/forzar-analisis/EURUSD", "/iniciar-manual"
         ]
     })
 
 @app.route('/debug')
 def debug():
     """Endpoint de diagnóstico completo"""
+    bot_activo = monitor and hasattr(monitor, 'monitoreando') and monitor.monitoreando
+    
     info = {
         "status": "online",
+        "bot_automatico": bot_iniciado,
+        "bot_activo": bot_activo,
         "timestamp": datetime.now().isoformat(),
         "environment": {
             "TELEGRAM_TOKEN": "CONFIGURADO" if os.environ.get('TELEGRAM_TOKEN') else "FALTANTE",
@@ -99,14 +121,16 @@ def debug():
         },
         "monitor": {
             "inicializado": monitor is not None,
-            "monitoreando": monitor.monitoreando if monitor and hasattr(monitor, 'monitoreando') else False,
+            "monitoreando": bot_activo,
             "operaciones_activas": len(monitor.gestor.operaciones_activas) if monitor else 0,
-            "capital_actual": monitor.capital_actual if monitor else 0
+            "capital_actual": monitor.capital_actual if monitor else 0,
+            "total_operaciones": monitor.total_operaciones if monitor else 0
         },
         "system": {
             "python_version": "3.13.4",
             "flask_status": "running",
-            "server_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            "server_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "uptime": "ACTIVO"
         }
     }
     return jsonify(info)
@@ -118,12 +142,13 @@ def test_telegram():
         return jsonify({"status": "error", "message": "Monitor no disponible"})
     
     try:
-        mensaje = f"🤖 TEST DE CONEXIÓN EXITOSO\nHora: {datetime.now().strftime('%H:%M:%S')}\nBot: Trading Multi-Activos\nServidor: Render"
+        mensaje = f"🤖 TEST DE CONEXIÓN EXITOSO\nHora: {datetime.now().strftime('%H:%M:%S')}\nBot: Trading Multi-Activos\nModo: {'AUTOMÁTICO' if bot_iniciado else 'MANUAL'}\nServidor: Render"
         exito = monitor.telegram.enviar_mensaje(mensaje)
         
         return jsonify({
             "status": "success" if exito else "error",
             "message": "✅ Mensaje de test enviado a Telegram" if exito else "❌ Error enviando mensaje",
+            "modo": "AUTOMÁTICO" if bot_iniciado else "MANUAL",
             "timestamp": datetime.now().isoformat()
         })
     except Exception as e:
@@ -135,11 +160,15 @@ def status():
     if not monitor:
         return jsonify({"status": "error", "message": "Monitor no inicializado"})
     
+    bot_activo = hasattr(monitor, 'monitoreando') and monitor.monitoreando
+    
     return jsonify({
-        "status": "OPERACIONAL" if monitor.monitoreando else "INICIALIZANDO",
-        "bot_activo": monitor.monitoreando,
+        "status": "OPERACIONAL" if bot_activo else "INICIALIZANDO",
+        "bot_activo": bot_activo,
+        "modo": "AUTOMÁTICO" if bot_iniciado else "MANUAL",
         "operaciones_activas": len(monitor.gestor.operaciones_activas),
         "capital_actual": f"${monitor.capital_actual:.2f}",
+        "total_operaciones": monitor.total_operaciones,
         "ultima_actualizacion": datetime.now().isoformat()
     })
 
@@ -200,6 +229,34 @@ def estadisticas():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
+@app.route('/iniciar-manual')
+def iniciar_manual():
+    """Iniciar bot manualmente si no arrancó automático"""
+    global monitor, bot_iniciado
+    
+    if not monitor:
+        return jsonify({"status": "error", "message": "Monitor no disponible"})
+    
+    if hasattr(monitor, 'monitoreando') and monitor.monitoreando:
+        return jsonify({"status": "info", "message": "El bot ya está ejecutándose"})
+    
+    try:
+        def iniciar_bot():
+            print("🤖 INICIANDO BOT EN MODO MANUAL...")
+            monitor.iniciar_monitoreo()
+        
+        hilo = threading.Thread(target=iniciar_bot, daemon=True)
+        hilo.start()
+        bot_iniciado = True
+        
+        return jsonify({
+            "status": "success", 
+            "message": "Bot iniciado manualmente",
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
 @app.route('/reiniciar-riesgo')
 def reiniciar_riesgo():
     """Reiniciar contadores de riesgo"""
@@ -225,7 +282,7 @@ def not_found(error):
         "message": "Endpoint no encontrado",
         "endpoints_available": [
             "/", "/debug", "/test-telegram", "/status", 
-            "/estadisticas", "/forzar-analisis/EURUSD", "/reiniciar-riesgo"
+            "/estadisticas", "/forzar-analisis/EURUSD", "/iniciar-manual", "/reiniciar-riesgo"
         ],
         "timestamp": datetime.now().isoformat()
     }), 404
@@ -248,6 +305,7 @@ if __name__ == "__main__":
     print(f"   • https://bingx-f9ol.onrender.com/status")
     print(f"   • https://bingx-f9ol.onrender.com/estadisticas")
     print(f"   • https://bingx-f9ol.onrender.com/forzar-analisis/EURUSD")
+    print(f"   • https://bingx-f9ol.onrender.com/iniciar-manual")
     print(f"   • https://bingx-f9ol.onrender.com/reiniciar-riesgo")
     print("=" * 60)
     app.run(host="0.0.0.0", port=port, debug=False)
